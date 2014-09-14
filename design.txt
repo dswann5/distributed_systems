@@ -1,0 +1,70 @@
+John An
+Daniel Swann
+
+Distributed Systems Assignment 1 Design Doc.
+
+We will transfer the file in custom packets. Our packet will contain a sequence number integer, an acknowledgement number integer, an array of bytes of size 2^12, and an integer FIN field that is either set to 0 or the index of the EOF character in the packet array.
+
+packet structure
+int index //(sequence number)
+int ack_num (acknowledgement number)
+char data[2^12]
+int FIN (to determine if the packet is the last in sequence)
+
+--
+We will use the selective repeat protocol for our windowed packet transfer process.
+--
+npc function:
+The npc function will contain:
+    - the struct defining a packet
+    - an array of packets of size 16
+    - an array of booleans of size 16
+    - a global int MAX_PACKET_NUM
+    - a global timer long
+    - a local timer long for the window – to calculate transfer rate per 50 megabytes
+    - a global counter long to hold the total amount of data in megabytes in the program so far
+    - a local counter int to check if we’ve hit the 50 megabyte benchmark.
+
+NOTE: We were considering using one counter and modding it after every packet sent to see if it was divisible by 2^20, but we thought that would be too expensive.
+
+First, we begin the global timer.
+
+We first check if the local data counter is equal to 50*2^20 (the size of 50 megabytes), if it is, we print the global total data amount counter, then calculate and print the average rate of transfer of the last 50 megabytes, then reset the local data counter to 0.
+
+Then, 
+- Open file pointer
+- Divide file size by packet size, ceiling that value, then store resulting value as MAX_PACKET_NUM
+- Initiate a for loop bounded by MAX_PACKET_NUM
+    - Instantiate a local counter set to 0 for indexing the current window
+    - Initialize a packet struct, from the file, read in 2^12 bytes and store into the packet’s data value, then store the packet in the array of packets
+        - If we encounter the EOF character, set FIN value equal to the index of the EOF character within the data array
+    - When the packet array is full or the greater for loop is at its final iteration (i = MAX_PACKET_NUM), send all or up to 16-((MAX_PACKET_NUM mod 16)-1) packets in array in order, start timeout timer
+    - 1 second timeout per window frame (depends on network congestion)
+    - Wait for all acks ie. if any ack array values are false,
+        - Upon each ack received, set index = sequence number mod 16 in ack array to true
+        - If local timeout is >= 1, iterate through ack array and check for null values 
+            - Resend the non-ack’d packets
+            - Reset local timeout timer
+    - Traverse to first non-ack’d packet, shift window over by copying in subsequent value over previously sent packet, perform same shift on ack array, but set overflow values to false
+
+
+rcv function:
+The rcv function will contain:
+    - the struct defining a packet
+    - an array of packets of size 16
+    - a global timer long
+    - a local timer long for the window – to calculate transfer rate per 50 megabytes
+    - a global counter long to hold the total amount of data in megabytes in the program so far
+    - a local counter int to check if we’ve hit the 50 megabyte benchmark.
+
+- Read the packet’s sequence number
+    - If sequence number < sequence number of packet at first index, don’t store packet since it already has been written
+    - Else store in the receive buffer array at index = sequence number mod 16
+- Send an empty packet with the ack_num set to the sequence number
+- Iterate through the received packet array, write each index until we encounter a null index, shift window (send nack at this point? Increase performance?)
+
+Additional Information:
+
+In order to transmit the last packet of the file which may contain an arbitrary number of bytes padded by zeros, the FIN field will contain zero until the npc function pointer encounters the EOF character. After which, the FIN field of the last packet will be set to the index of the EOF character in the last data payload. This is to ensure that the remainder of the file is written to disk correctly, with no extraneous padding.
+
+We don’t need to worry about the upper bound for the loop in rcv function, when it encounters the FIN packet, it disregards any information left in the window and writes everything in the packet to the file.
