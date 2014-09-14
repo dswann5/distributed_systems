@@ -1,104 +1,67 @@
 #include "net_include.h"
 
-#define NAME_LENGTH 80
-
-int gethostname(char*,size_t);
-
-void PromptForHostName( char *my_name, char *host_name, size_t max_len ); 
-
 int main()
 {
-    struct sockaddr_in    name;
-    struct sockaddr_in    send_addr;
-    struct sockaddr_in    from_addr;
-    socklen_t             from_len;
-    struct hostent        h_ent;
-    struct hostent        *p_h_ent;
-    char                  host_name[NAME_LENGTH] = {'\0'};
-    char                  my_name[NAME_LENGTH] = {'\0'};
-    int                   host_num;
-    int                   from_ip;
-    int                   ss,sr;
-    fd_set                mask;
-    fd_set                dummy_mask,temp_mask;
-    int                   bytes;
-    int                   num;
-    char                  mess_buf[MAX_MESS_LEN];
-    char                  input_buf[80];
-    struct timeval        timeout;
+    struct sockaddr_in host;
+    struct hostent     h_ent, *p_h_ent;
 
-    sr = socket(AF_INET, SOCK_DGRAM, 0);  /* socket for receiving (udp) */
-    if (sr<0) {
-        perror("Ucast: socket");
+    char               host_name[80];
+    char               *c;
+
+    int                s;
+    int                ret;
+    int                mess_len;
+    char               mess_buf[MAX_MESS_LEN];
+    char               *neto_mess_ptr = &mess_buf[sizeof(mess_len)]; 
+
+    s = socket(AF_INET, SOCK_STREAM, 0); /* Create a socket (TCP) */
+    if (s<0) {
+        perror("Net_client: socket error");
         exit(1);
     }
 
-    name.sin_family = AF_INET; 
-    name.sin_addr.s_addr = INADDR_ANY; 
-    name.sin_port = htons(PORT);
+    host.sin_family = AF_INET;
+    host.sin_port   = htons(PORT);
 
-    if ( bind( sr, (struct sockaddr *)&name, sizeof(name) ) < 0 ) {
-        perror("Ucast: bind");
+    printf("Enter the server name:\n");
+    if ( fgets(host_name,80,stdin) == NULL ) {
+        perror("net_client: Error reading server name.\n");
         exit(1);
     }
- 
-    ss = socket(AF_INET, SOCK_DGRAM, 0); /* socket for sending (udp) */
-    if (ss<0) {
-        perror("Ucast: socket");
-        exit(1);
-    }
-    
-    PromptForHostName(my_name,host_name,NAME_LENGTH);
-    
+    c = strchr(host_name,'\n'); /* remove new line */
+    if ( c ) *c = '\0';
+    c = strchr(host_name,'\r'); /* remove carriage return */
+    if ( c ) *c = '\0';
+    printf("Your server is %s\n",host_name);
+
     p_h_ent = gethostbyname(host_name);
     if ( p_h_ent == NULL ) {
-        printf("Ucast: gethostbyname error.\n");
+        printf("net_client: gethostbyname error.\n");
         exit(1);
     }
 
-    memcpy( &h_ent, p_h_ent, sizeof(h_ent));
-    memcpy( &host_num, h_ent.h_addr_list[0], sizeof(host_num) );
+    memcpy( &h_ent, p_h_ent, sizeof(h_ent) );
+    memcpy( &host.sin_addr, h_ent.h_addr_list[0],  sizeof(host.sin_addr) );
 
-    send_addr.sin_family = AF_INET;
-    send_addr.sin_addr.s_addr = host_num; 
-    send_addr.sin_port = htons(PORT);
+    ret = connect(s, (struct sockaddr *)&host, sizeof(host) ); /* Connect! */
+    if( ret < 0)
+    {
+        perror( "Net_client: could not connect to server"); 
+        exit(1);
+    }
 
-    FD_ZERO( &mask );
-    FD_ZERO( &dummy_mask );
-    FD_SET( sr, &mask );
-    FD_SET( (long)0, &mask ); /* stdin */
     for(;;)
     {
-        temp_mask = mask;
-        timeout.tv_sec = 10;
-	timeout.tv_usec = 0;
-        num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
-        if (num > 0) {
-            if ( FD_ISSET( sr, &temp_mask) ) {
-                from_len = sizeof(from_addr);
-                bytes = recvfrom( sr, mess_buf, sizeof(mess_buf), 0,  
-                          (struct sockaddr *)&from_addr, 
-                          &from_len );
-                mess_buf[bytes] = 0;
-                from_ip = from_addr.sin_addr.s_addr;
+        printf("enter message: ");
+        scanf("%s",neto_mess_ptr);
+        mess_len = strlen(neto_mess_ptr) + sizeof(mess_len);
+        memcpy( mess_buf, &mess_len, sizeof(mess_len) );
 
-                printf( "Received from (%d.%d.%d.%d): %s\n", 
-								(htonl(from_ip) & 0xff000000)>>24,
-								(htonl(from_ip) & 0x00ff0000)>>16,
-								(htonl(from_ip) & 0x0000ff00)>>8,
-								(htonl(from_ip) & 0x000000ff),
-								mess_buf );
-
-            }else if( FD_ISSET(0, &temp_mask) ) {
-                bytes = read( 0, input_buf, sizeof(input_buf) );
-                input_buf[bytes] = 0;
-                printf( "There is an input: %s\n", input_buf );
-                sendto( ss, input_buf, strlen(input_buf), 0, 
-                    (struct sockaddr *)&send_addr, sizeof(send_addr) );
-            }
-	} else {
-		printf(".");
-		fflush(0);
+        ret = send( s, mess_buf, mess_len, 0);
+        if(ret != mess_len) 
+        {
+            perror( "Net_client: error in writing");
+            exit(1);
         }
     }
 
@@ -106,24 +69,3 @@ int main()
 
 }
 
-void PromptForHostName( char *my_name, char *host_name, size_t max_len ) {
-
-    char *c;
-
-    gethostname(my_name, max_len );
-    printf("My host name is %s.\n", my_name);
-
-    printf( "\nEnter host to send to:\n" );
-    if ( fgets(host_name,max_len,stdin) == NULL ) {
-        perror("Ucast: read_name");
-        exit(1);
-    }
-    
-    c = strchr(host_name,'\n');
-    if ( c ) *c = '\0';
-    c = strchr(host_name,'\r');
-    if ( c ) *c = '\0';
-
-    printf( "Sending from %s to %s.\n", my_name, host_name );
-
-}
