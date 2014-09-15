@@ -12,7 +12,9 @@
 
 #include <errno.h>
 
-#define PORT	     5555
+#include "packet.h"
 
-#define MAX_MESS_LEN 8192
-
+#define PORT	     10100
+#define WINDOW_SIZE 16
+#define MAX_MESS_LEN 1400
+#define MEGABYTE 52428800

@@ -2,17 +2,17 @@ CC=gcc
 
 CFLAGS = -ansi -c -Wall -pedantic
 
-all: npc rcv
+all: ncp rcv
 
-npc: npc.o
-	    $(CC) -o npc npc.o
+npc: ncp.o
+	    $(CC) -o ncp ncp.o
 
 rcv: rcv.o
 	    $(CC) -o rcv rcv.o
 
 clean:
 	rm *.o
-	rm npc 
+	rm ncp 
 	rm rcv
 
 %.o:    %.c
