@@ -22,7 +22,6 @@ int main(int argc, char **argv)
     fd_set                dummy_mask,temp_mask;
     int                   bytes;
     int                   num;
-    char                  input_buf[80];
     struct timeval        timeout;
 
     /*** NON COPIED CODE ***/
@@ -87,7 +86,29 @@ int main(int argc, char **argv)
 
     printf("Opened %s for reading...\n", filename);
 
-    /*********************/ 
+
+    /** our code **/
+
+    int nread;
+    for (i = 0; i < WINDOW_SIZE; i++) {
+        temp_mask = mask;
+        timeout.tv_sec = 10;
+	    timeout.tv_usec = 0;
+        num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
+        if (num > 0) {
+            if (FD_ISSET(0, &temp_mask) ) {
+                nread = fread(send_buffer[i].payload, 1, PAYLOAD_SIZE, fr);
+                ret = sendto_dbg(ss, send_buffer[i].payload, PAYLOAD_SIZE, 0,
+                (struct sockaddr *)&send_addr, sizeof(send_addr)); 
+            }
+        } 
+        else {
+		    printf(".");
+		    fflush(0);
+        }
+    }
+
+    /*
     for(;;)
     {
         temp_mask = mask;
@@ -107,7 +128,7 @@ int main(int argc, char **argv)
 		fflush(0);
         }
     }
-
+*/
     fclose(fr);
     return 0;
 
