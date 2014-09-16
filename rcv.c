@@ -1,86 +1,75 @@
 #include "net_include.h"
 
+#define NAME_LENGTH 80
+
 int main()
 {
-    struct sockaddr_in name;
-    int                s;
-    fd_set             mask;
-    int                recv_s[10];
-    int                valid[10];  
-    fd_set             dummy_mask,temp_mask;
-    int                i,j,num;
-    int                mess_len;
-    int                neto_len;
-    char               mess_buf[MAX_MESS_LEN];
-    long               on=1;
+    struct sockaddr_in    name;
+    struct sockaddr_in    from_addr;
+    socklen_t             from_len;
+    int                   from_ip;
+    int                   sr;
+    fd_set                mask;
+    fd_set                dummy_mask,temp_mask;
+    int                   bytes;
+    int                   num;
+    char                  mess_buf[MAX_MESS_LEN];
+    struct timeval        timeout;
 
-    s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s<0) {
-        perror("Net_server: socket");
+    /**added**/
+    int i;
+    struct packet *rcv_buffer = malloc(WINDOW_SIZE * sizeof(struct packet));
+    /*********/
+    sr = socket(AF_INET, SOCK_DGRAM, 0);  /* socket for receiving (udp) */
+    if (sr<0) {
+        perror("Ucast: socket");
         exit(1);
     }
 
-    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0)
-    {
-        perror("Net_server: setsockopt error \n");
-        exit(1);
-    }
-
-    name.sin_family = AF_INET;
-    name.sin_addr.s_addr = INADDR_ANY;
+    name.sin_family = AF_INET; 
+    name.sin_addr.s_addr = INADDR_ANY; 
     name.sin_port = htons(PORT);
 
-    if ( bind( s, (struct sockaddr *)&name, sizeof(name) ) < 0 ) {
-        perror("Net_server: bind");
-        exit(1);
-    }
- 
-    if (listen(s, 4) < 0) {
-        perror("Net_server: listen");
+    if ( bind( sr, (struct sockaddr *)&name, sizeof(name) ) < 0 ) {
+        perror("Ucast: bind");
         exit(1);
     }
 
-    i = 0;
-    FD_ZERO(&mask);
-    FD_ZERO(&dummy_mask);
-    FD_SET(s,&mask);
+    FD_ZERO( &mask );
+    FD_ZERO( &dummy_mask );
+    FD_SET( sr, &mask );
+    FD_SET( (long)0, &mask ); /* stdin */
     for(;;)
     {
         temp_mask = mask;
-        num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, NULL);
+        timeout.tv_sec = 10;
+	timeout.tv_usec = 0;
+        num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
-            if ( FD_ISSET(s,&temp_mask) ) {
-                recv_s[i] = accept(s, 0, 0) ;
-                FD_SET(recv_s[i], &mask);
-                valid[i] = 1;
-                i++;
+            if ( FD_ISSET( sr, &temp_mask) ) {
+                from_len = sizeof(from_addr);
+                /*
+                bytes = recvfrom( sr, mess_buf, sizeof(mess_buf), 0,  
+                          (struct sockaddr *)&from_addr, 
+                          &from_len );
+                mess_buf[bytes] = 0;
+                from_ip = from_addr.sin_addr.s_addr;
+
+
+                printf( "Received from (%d.%d.%d.%d): %s\n", 
+								(htonl(from_ip) & 0xff000000)>>24,
+								(htonl(from_ip) & 0x00ff0000)>>16,
+								(htonl(from_ip) & 0x0000ff00)>>8,
+								(htonl(from_ip) & 0x000000ff),
+								mess_buf );*/
+                recv( sr, rcv_buffer[i].payload, PAYLOAD_SIZE, 0 );
             }
-            for(j=0; j<i ; j++)
-            {   if (valid[j])    
-                if ( FD_ISSET(recv_s[j],&temp_mask) ) {
-                    if( recv(recv_s[j],&mess_len,sizeof(mess_len),0) > 0) {
-                        neto_len = mess_len - sizeof(mess_len);
-                        recv(recv_s[j], mess_buf, neto_len, 0 );
-                        mess_buf[neto_len] = '\0';
-                    
-                        printf("socket is %d ",j);
-                        printf("len is :%d  message is : %s \n ",
-                               mess_len,mess_buf); 
-                        printf("---------------- \n");
-                    }
-                    else
-                    {
-                        printf("closing %d \n",j);
-                        FD_CLR(recv_s[j], &mask);
-                        close(recv_s[j]);
-                        valid[j] = 0;  
-                    }
-                }
-            }
+	    } else {
+		    printf(".");
+		    fflush(0);
         }
     }
 
     return 0;
 
 }
-
