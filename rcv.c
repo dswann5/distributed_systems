@@ -13,12 +13,12 @@ int main()
     fd_set                dummy_mask,temp_mask;
     int                   bytes;
     int                   num;
-    char                  mess_buf[MAX_MESS_LEN];
     struct timeval        timeout;
 
     /**added**/
-    int i;
+    int i = 0;
     struct packet *rcv_buffer = malloc(WINDOW_SIZE * sizeof(struct packet));
+    
     /*********/
     sr = socket(AF_INET, SOCK_DGRAM, 0);  /* socket for receiving (udp) */
     if (sr<0) {
@@ -48,21 +48,28 @@ int main()
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
                 from_len = sizeof(from_addr);
-                /*
-                bytes = recvfrom( sr, mess_buf, sizeof(mess_buf), 0,  
+                
+                /*bytes = recvfrom( sr, mess_buf, sizeof(mess_buf), 0,  
                           (struct sockaddr *)&from_addr, 
                           &from_len );
                 mess_buf[bytes] = 0;
+                */
+                
                 from_ip = from_addr.sin_addr.s_addr;
 
 
-                printf( "Received from (%d.%d.%d.%d): %s\n", 
+                printf( "Received from (%d.%d.%d.%d): \n", 
 								(htonl(from_ip) & 0xff000000)>>24,
 								(htonl(from_ip) & 0x00ff0000)>>16,
 								(htonl(from_ip) & 0x0000ff00)>>8,
-								(htonl(from_ip) & 0x000000ff),
-								mess_buf );*/
+								(htonl(from_ip) & 0x000000ff));
+                
+                printf("This is the index: %d", i);
+
                 recv( sr, rcv_buffer[i].payload, PAYLOAD_SIZE, 0 );
+
+                printf("%s\n", rcv_buffer[i].payload);
+                i++;
             }
 	    } else {
 		    printf(".");

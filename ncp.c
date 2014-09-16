@@ -77,8 +77,8 @@ int main(int argc, char **argv)
 
     split_string(destination, &dest_file_name, &dest_comp_name);
 
-    printf("-------------------\nDestination:%s\nDest-File-Name:%s\nDest-Comp-Name:%s\n", destination, &dest_file_name, &dest_comp_name);
-    printf("-------------------\nDest-File-Name:%s\n", &dest_file_name);
+/*    printf("-------------------\nDestination:%s\nDest-File-Name:%s\nDest-Comp-Name:%s\n", destination, &dest_file_name, &dest_comp_name);
+    printf("-------------------\nDest-File-Name:%s\n", &dest_file_name);*/
     if ((fr = fopen(filename, "r")) == NULL) {
         perror("fopen");
         exit(0);
@@ -90,37 +90,39 @@ int main(int argc, char **argv)
     /** our code **/
 
     int nread;
-    for (i = 0; i < WINDOW_SIZE; i++) {
+    /*for (i = 0; i < WINDOW_SIZE; i++) {
+
         temp_mask = mask;
         timeout.tv_sec = 10;
 	    timeout.tv_usec = 0;
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
+
             if (FD_ISSET(0, &temp_mask) ) {
                 nread = fread(send_buffer[i].payload, 1, PAYLOAD_SIZE, fr);
-                ret = sendto_dbg(ss, send_buffer[i].payload, PAYLOAD_SIZE, 0,
+                ret = sendto_dbg(ss, send_buffer[0].payload, PAYLOAD_SIZE, 0,
                 (struct sockaddr *)&send_addr, sizeof(send_addr)); 
+                printf("%s\n%d\n-------------\n", send_buffer[0].payload, ret);
             }
         } 
         else {
 		    printf(".");
 		    fflush(0);
         }
-    }
+    }*/
 
-    /*
-    for(;;)
+    nread = fread(send_buffer[0].payload, 1, PAYLOAD_SIZE, fr);
+    ret = sendto_dbg(ss, send_buffer[0].payload, PAYLOAD_SIZE, 0,
+            (struct sockaddr *)&send_addr, sizeof(send_addr)); 
+/*    for(;;)
     {
         temp_mask = mask;
         timeout.tv_sec = 10;
-	timeout.tv_usec = 0;
+	    timeout.tv_usec = 0;
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if (FD_ISSET(0, &temp_mask) ) {
-                bytes = read( 0, input_buf, sizeof(input_buf) );
-                input_buf[bytes] = 0;
-                printf( "There is an input: %s\n", input_buf );
-                sendto_dbg( ss, input_buf, strlen(input_buf), 0, 
+                sendto_dbg( ss, send_buffer[0].payload, strlen(send_buffer[0].payload), 0, 
                     (struct sockaddr *)&send_addr, sizeof(send_addr) );
             }
 	} else {
@@ -141,13 +143,11 @@ void split_string(char *destination, char *dest_file_name, char *dest_comp_name)
     int i, j, k;
 
     for (i = 0; i<strlen(destination); i++)
-    {       
-        
+    {           
         if (destination[i] == '@')
         {
             at_index = i;
         }
-
     }
 
     for (j = 0; j < at_index; j++)
