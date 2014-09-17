@@ -92,8 +92,8 @@ int main()
 								(htonl(from_ip) & 0x000000ff));
 
                 printf("This is the index: %d\n", i);
-                recv( sr, rcv_buf[i].payload, PAYLOAD_SIZE, 0 );
-                printf("%s\n", rcv_buf[i].payload);
+                recv( sr, &rcv_buf[i], PACKET_SIZE, 0 );
+                printf("%s\n", rcv_buf[i].FIN);
                 i++;
 
 

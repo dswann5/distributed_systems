@@ -1,4 +1,5 @@
 #include "net_include.h"
+#include <assert.h>
 
 #define NAME_LENGTH 80
 
@@ -8,12 +9,6 @@ void PromptForHostName( char *my_name, char *host_name, size_t max_len );
 
 void split_string(char *destination, char *dest_file_name, char *dest_comp_name); 
 
-void find_char(char *destination, int *index);
-/*
-void parse_filename(char *destination, char *dest_file_name);
-
-void parse_compname(char *destination, char *dest_comp_name);
-*/
 int main(int argc, char **argv)
 {
     struct sockaddr_in    name;
@@ -94,14 +89,7 @@ int main(int argc, char **argv)
     FD_ZERO( &dummy_mask );
     FD_SET( sr, &mask );
     FD_SET( (long)0, &mask ); /* stdin */
-    /****************************
-     * **************
-     ****************************/
-/*    find_char(destination, at_index);
-    printf("%i", at_index);
-    dest_file_name = malloc((at_index+1) * sizeof(char));
-    dest_comp_name = malloc((strlen(destination)-at_index-1) * sizeof(char));
-*/
+
     send_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
     split_string(destination, dest_file_name, dest_comp_name);
 
@@ -112,21 +100,22 @@ int main(int argc, char **argv)
 
     printf("Opened %s for reading...\n", filename);
 
-
-    /** our code **/
-
     int z;
 
     for (z = 0; z < 16; z++) {
         printf("Packet index %d\n", z);
         nread = fread(send_buf[z].payload, 1, PAYLOAD_SIZE, fr);
-        sendto_dbg(ss, send_buf[z].payload, PAYLOAD_SIZE, 0,
+	
+	send_buf[z].index = z;
+	send_buf[z].ack_num = 0;
+	send_buf[z].FIN = 0;
+	
+	sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
             (struct sockaddr *)&send_addr, sizeof(send_addr));
 
     }
-
-   /* 
-    for(;;)
+ 
+    /*for(;;)
     {
         temp_mask = mask;
         timeout.tv_sec = 10;
@@ -159,14 +148,14 @@ int main(int argc, char **argv)
 		printf(".");
 		fflush(0);
         }
-    }
-*/
+    }*/
+
     fclose(fr);
     return 0;
 
 }
 
-/**added**/
+/** Updates dest_file_name and dest_comp_name with tokenized values from destination **/
 void split_string(char *destination, char *dest_file_name, char *dest_comp_name) {
 
     const char delimiter[2] = "@";
@@ -174,7 +163,7 @@ void split_string(char *destination, char *dest_file_name, char *dest_comp_name)
     /* Get the first token, aka the destination file name */
     dest_file_name = strtok(destination, delimiter);
    
-    printf( "Destinaion filename: %s\n", dest_file_name );
+    printf( "Destination filename: %s\n", dest_file_name );
     
     /* Parse the second token, aka the destination hostname */
     dest_comp_name = strtok(NULL, delimiter);
