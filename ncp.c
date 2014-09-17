@@ -6,7 +6,7 @@ int gethostname(char*,size_t);
 
 void PromptForHostName( char *my_name, char *host_name, size_t max_len ); 
 
-void split_string(char *destination, char *dest_file_name, char *dest_comp_name, int at_index); 
+void split_string(char *destination, char *dest_file_name, char *dest_comp_name); 
 
 void find_char(char *destination, int *index);
 /*
@@ -39,8 +39,8 @@ int main(int argc, char **argv)
     int loss_rate = atoi(argv[1]);
     char *filename = argv[2];
     char *destination = argv[3];
-    char *dest_file_name;
-    char *dest_comp_name;
+    char *dest_file_name; /* file name to be written at the receiver */
+    char *dest_comp_name; /* receiver hostname */
 
     int i;
     int nread;
@@ -103,12 +103,8 @@ int main(int argc, char **argv)
     dest_comp_name = malloc((strlen(destination)-at_index-1) * sizeof(char));
 */
     send_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
-/*    split_string(destination, &dest_file_name, &dest_comp_name, at_index);
+    split_string(destination, dest_file_name, dest_comp_name);
 
-    parse_filename(destination, &dest_file_name);
-    parse_compname(destination, &dest_comp_name);*/
-/*    printf("-------------------\nDestination:%s\nDest-File-Name:%s\nDest-Comp-Name:%s\n", destination, &dest_file_name, &dest_comp_name);
-*/
     if ((fr = fopen(filename, "r")) == NULL) {
         perror("fopen");
         exit(0);
@@ -122,7 +118,7 @@ int main(int argc, char **argv)
     int z;
 
     for (z = 0; z < 16; z++) {
-        printf("HI %d\n", z);
+        printf("Packet index %d\n", z);
         nread = fread(send_buf[z].payload, 1, PAYLOAD_SIZE, fr);
         sendto_dbg(ss, send_buf[z].payload, PAYLOAD_SIZE, 0,
             (struct sockaddr *)&send_addr, sizeof(send_addr));
@@ -171,63 +167,21 @@ int main(int argc, char **argv)
 }
 
 /**added**/
-/**TODO fix dest_file_name **/
-void split_string(char *destination, char *dest_file_name, char *dest_comp_name, int at_index) {
-/*    int at_index;
-    int i, j, k;
+void split_string(char *destination, char *dest_file_name, char *dest_comp_name) {
 
-    for (i = 0; i<strlen(destination); i++)
-    {           
-        if (destination[i] == '@')
-        {
-            at_index = i;
-        }
-    }
-
-    for (j = 0; j < at_index; j++)
-    {
-        dest_file_name[j] = malloc(sizeof(char));
-    }
-
-    for (k = 0; k < strlen(destination)-at_index-1; k++)
-    {
-        dest_comp_name[k] = malloc(sizeof(char));
-    }
-*/
-
-    memcpy(dest_file_name, &destination[0], at_index+1);
-    dest_file_name[at_index] = '\0';
+    const char delimiter[2] = "@";
+   
+    /* Get the first token, aka the destination file name */
+    dest_file_name = strtok(destination, delimiter);
+   
+    printf( "Destinaion filename: %s\n", dest_file_name );
     
-    memcpy(dest_comp_name, &destination[at_index+1], strlen(destination)-at_index-1); 
-    dest_comp_name[strlen(destination)-at_index-1] = '\0';
-}
-/*
-void find_char(char *destination, int *index) {
-    int i;
-    for (i = 0; i<strlen(destination); i++)
-    {           
-        if (destination[i] == '@')
-        {
-            index = i;
-            printf("\n%i %i\n", index, i);
-        }
-    }
-}*/
-/*
-void parse_filename(char *destination, char *dest_file_name) {
-    int at_index;
-    find_char(destination, &at_index);
-    memcpy(dest_file_name, &destination[0], at_index+1);
-    dest_file_name[at_index] = '\0';
+    /* Parse the second token, aka the destination hostname */
+    dest_comp_name = strtok(NULL, delimiter);
+    
+    printf("Destination: %s\n", dest_comp_name);
 }
 
-void parse_compname(char *destination, char *dest_comp_name) {
-    int at_index;
-    find_char(destination, &at_index);
-    memcpy(dest_comp_name, &destination[at_index+1], strlen(destination)-at_index-1); 
-    dest_comp_name[strlen(destination)-at_index-1] = '\0';
-}
-*/
 void PromptForHostName( char *my_name, char *host_name, size_t max_len ) {
 
     char *c;

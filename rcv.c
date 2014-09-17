@@ -121,7 +121,7 @@ void PromptForHostName( char *my_name, char *host_name, size_t max_len ) {
     gethostname(my_name, max_len );
     printf("My host name is %s.\n", my_name);
 
-    printf( "\nEnter host to send to:\n" );
+    printf( "\nEnter host to receive from:\n" );
     if ( fgets(host_name,max_len,stdin) == NULL ) {
         perror("Ucast: read_name");
         exit(1);
