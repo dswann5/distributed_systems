@@ -93,7 +93,7 @@ int main()
 
                 printf("This is the index: %d\n", i);
                 recv( sr, &rcv_buf[i], PACKET_SIZE, 0 );
-                printf("%s\n", rcv_buf[i].FIN);
+                printf("%d\n", rcv_buf[i].index);
                 i++;
 
 

@@ -113,6 +113,8 @@ int main(int argc, char **argv)
 	sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
             (struct sockaddr *)&send_addr, sizeof(send_addr));
 
+	printf("%d\n", send_buf[z].index);
+
     }
  
     /*for(;;)
