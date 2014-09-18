@@ -8,7 +8,7 @@ We will transfer the file in custom packets. Our packet will contain a sequence 
 packet structure
 int index //(sequence number)
 int ack_num (acknowledgement number)
-char data[2^12]
+char data[PAYLOAD_SIZE]
 int FIN (to determine if the packet is the last in sequence)
 
 --
@@ -51,7 +51,7 @@ Then,
 rcv function:
 The rcv function will contain:
     - the struct defining a packet
-    - an array of packets of size 16
+    - an array of packets of size WINDOW_SIZE
     - a global timer long
     - a local timer long for the window – to calculate transfer rate per 50 megabytes
     - a global counter long to hold the total amount of data in megabytes in the program so far
