@@ -71,7 +71,7 @@ int main()
     rcv_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
 
     FILE *fw;
-    if ((fw = fopen("test.txt", "wb")) == NULL) {
+    if ((fw = fopen("test", "wb")) == NULL) {
         perror("fopen");
         exit(0);
     }

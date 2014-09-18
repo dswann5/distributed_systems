@@ -103,7 +103,7 @@ int main(int argc, char **argv)
     int z = 0;
 
     /*for (z = 0; z < WINDOW_SIZE; z++) {*/
-    do {
+    for(;;) {
         if (z == 16)
             z = 0;
         printf("Packet index %d\n", z);
@@ -134,12 +134,12 @@ int main(int argc, char **argv)
         sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
                 (struct sockaddr *)&send_addr, sizeof(send_addr));
         z++;
-    } while (nread != 0);
+    }
     /*for(;;)
     {
         temp_mask = mask;
         timeout.tv_sec = 10;
-	timeout.tv_usec = 0;
+	    timeout.tv_usec = 0;
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 								(htonl(from_ip) & 0x000000ff),
 								mess_buf );
 
-            }else if( FD_ISSET(0, &temp_mask) ) {
+            } else if( FD_ISSET(0, &temp_mask) ) {
                 bytes = read( 0, input_buf, sizeof(input_buf) );
                 input_buf[bytes] = 0;
                 printf( "There is an input: %s\n", input_buf );
