@@ -77,11 +77,13 @@ int main()
     }
     int size;
     char breakloop = 0;
+    struct packet dummy_ack;
+
     for(;;)
     {
         temp_mask = mask;
-        timeout.tv_sec = 10;
-	timeout.tv_usec = 0;
+        timeout.tv_sec = 1;
+	    timeout.tv_usec = 0;
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
@@ -102,7 +104,9 @@ int main()
 								(htonl(from_ip) & 0x000000ff));
 
                 recv( sr, &rcv_buf[i], PACKET_SIZE, 0 );
-
+                dummy_ack.ack_num = i;
+                sendto_dbg( ss, &dummy_ack, PACKET_SIZE, 0,
+                        (struct sockaddr *)&send_addr, sizeof(send_addr));
                 printf("This is the index: %d\n", rcv_buf[i].index);
                 if (rcv_buf[i].FIN > 0) {
                     size = rcv_buf[i].FIN;
@@ -122,6 +126,7 @@ int main()
                 printf( "There is an input: %s\n", input_buf );
                 sendto( ss, input_buf, strlen(input_buf), 0, 
                     (struct sockaddr *)&send_addr, sizeof(send_addr) );*/
+
             }
 	} else {
 		printf(".");

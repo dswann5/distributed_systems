@@ -103,7 +103,45 @@ int main(int argc, char **argv)
     int z = 0;
 
     /*for (z = 0; z < WINDOW_SIZE; z++) {*/
-    for(;;) {
+/*    for(;;) {
+        if (z == 16)
+            z = 0;
+        printf("Packet index %d\n", z);
+            
+        nread = fread(send_buf[z].payload, 1, PAYLOAD_SIZE, fr);
+        
+        /* Checks to see if the file length % PAYLOAD_SIZE == 0 */
+/*        if (nread == 0)
+        {
+           /*TODO possibly put nested infinite for in here,
+            * break when ack received and break after nested for
+           break;*/
+/*        }
+        else if (nread < PAYLOAD_SIZE ) /* checks that we are at EOF */
+/*        {
+            send_buf[z].FIN = nread;
+            printf("FIN is set to %d\n", send_buf[z].FIN);
+            printf("Last char is %d\n",send_buf[z].payload[nread]);
+        }
+        else /* there is more of the file to read */
+/*        {
+            send_buf[z].FIN = 0;
+        }
+        send_buf[z].index = z;
+        send_buf[z].ack_num = 0;
+        
+
+        sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
+                (struct sockaddr *)&send_addr, sizeof(send_addr));
+        z++;
+    }*/
+    struct packet temp_packet;
+    for(;;)
+    {
+        temp_mask = mask;
+        timeout.tv_sec = 1;
+	    timeout.tv_usec = 0;
+        /*****/
         if (z == 16)
             z = 0;
         printf("Packet index %d\n", z);
@@ -114,7 +152,7 @@ int main(int argc, char **argv)
         if (nread == 0)
         {
            /*TODO possibly put nested infinite for in here,
-            * break when ack received and break after nested for*/ 
+            * break when ack received and break after nested for*/
            break;
         }
         else if (nread < PAYLOAD_SIZE ) /* checks that we are at EOF */
@@ -134,16 +172,15 @@ int main(int argc, char **argv)
         sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
                 (struct sockaddr *)&send_addr, sizeof(send_addr));
         z++;
-    }
-    /*for(;;)
-    {
-        temp_mask = mask;
-        timeout.tv_sec = 10;
-	    timeout.tv_usec = 0;
+        /******/
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                from_len = sizeof(from_addr);
+                printf("I'M HEEEEERRREEE\n");
+                recv( sr, &temp_packet, PACKET_SIZE, 0 );
+                ack[temp_packet.ack_num] = 1;
+                printf("This packet was acked: %d\n", temp_packet.ack_num);
+                /*from_len = sizeof(from_addr);
                 bytes = recvfrom( sr, mess_buf, sizeof(mess_buf), 0,  
                           (struct sockaddr *)&from_addr, 
                           &from_len );
@@ -156,19 +193,13 @@ int main(int argc, char **argv)
 								(htonl(from_ip) & 0x0000ff00)>>8,
 								(htonl(from_ip) & 0x000000ff),
 								mess_buf );
-
-            } else if( FD_ISSET(0, &temp_mask) ) {
-                bytes = read( 0, input_buf, sizeof(input_buf) );
-                input_buf[bytes] = 0;
-                printf( "There is an input: %s\n", input_buf );
-                sendto( ss, input_buf, strlen(input_buf), 0, 
-                    (struct sockaddr *)&send_addr, sizeof(send_addr) );
+*/
             }
-	} else {
-		printf(".");
-		fflush(0);
+	    } else {
+		    printf(".");
+		    fflush(0);
         }
-    }*/
+    }
 
     fclose(fr);
     return 0;
