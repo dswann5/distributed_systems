@@ -176,7 +176,7 @@ int main(int argc, char **argv)
                 /*printf("I'M HEEEEERRREEE\n");*/
                 recv( sr, &temp_packet, PACKET_SIZE, 0 );
                 ack[temp_packet.ack_num] = 1;
-                /*printf("This packet was acked: %d\n", temp_packet.ack_num);*/
+                printf("This packet was acked: %d\n", temp_packet.ack_num);
            }
 	    } else {
 		    fflush(0);
