@@ -67,9 +67,10 @@ int main(int argc, char **argv)
         exit(1);
     }
     
-    PromptForHostName(my_name,host_name,NAME_LENGTH);
-    
-    p_h_ent = gethostbyname(host_name);
+    /*PromptForHostName(my_name,host_name,NAME_LENGTH);*/
+    split_string(destination, &dest_file_name, &dest_comp_name);
+   
+    p_h_ent = gethostbyname(dest_comp_name);
     if ( p_h_ent == NULL ) {
         printf("Ucast: gethostbyname error.\n");
         exit(1);
@@ -88,9 +89,6 @@ int main(int argc, char **argv)
     FD_SET( (long)0, &mask ); /* stdin */
 
     send_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
-    split_string(destination, &dest_file_name, &dest_comp_name);
-
-    printf("heyyyyyyyyyyy\n%s, %s\n", dest_file_name, dest_comp_name);
 
     if ((fr = fopen(filename, "r")) == NULL) {
         perror("fopen");
@@ -100,7 +98,7 @@ int main(int argc, char **argv)
     printf("Opened %s for reading...\n", filename);
 
     int z = 0;
-
+    int packet_index;
     struct packet temp_packet;
 
     /* Continue sending first packet until it is acked */
@@ -110,7 +108,7 @@ int main(int argc, char **argv)
         timeout.tv_sec = 0;
         timeout.tv_usec = 1000;
 
-        strcpy(temp_packet.payload, "test.txt");
+        strcpy(temp_packet.payload, dest_file_name);
         sendto_dbg(ss, &temp_packet, PACKET_SIZE, 0,
             (struct sockaddr *)&send_addr, sizeof(send_addr));
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
@@ -132,13 +130,12 @@ int main(int argc, char **argv)
         timeout.tv_usec = 1000;
 
             /*****/
-        if (z == 16)
-            z = 0;
+        packet_index = z % WINDOW_SIZE;
         printf("Packet index %d\n", z);
 
        
         /* Read in from the file one packet at a time */   
-        nread = fread(send_buf[z].payload, 1, PAYLOAD_SIZE, fr);
+        nread = fread(send_buf[packet_index].payload, 1, PAYLOAD_SIZE, fr);
         
         /* Checks to see if the file length % PAYLOAD_SIZE == 0 */
         if (nread == 0)
@@ -146,27 +143,27 @@ int main(int argc, char **argv)
            /*TODO possibly put nested infinite for in here,
             * break when ack received and break after nested for*/
 
-            /*send_buf[z].FIN = 0;
-            sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
+            /*send_buf[packet_index].FIN = 0;
+            sendto_dbg(ss, &send_buf[packet_index], PACKET_SIZE, 0,
                 (struct sockaddr *)&send_addr, sizeof(send_addr));
 */
            break;
         }
         else if (nread < PAYLOAD_SIZE ) /* checks that we are at EOF */
         {
-            send_buf[z].FIN = nread;
-            printf("FIN is set to %d\n", send_buf[z].FIN);
-            printf("Last char is %c\n",send_buf[z].payload[nread]);
+            send_buf[packet_index].FIN = nread;
+            printf("FIN is set to %d\n", send_buf[packet_index].FIN);
+            printf("Last char is %c\n",send_buf[packet_index].payload[nread]);
         }
         else /* there is more of the file to read */
         {
-            send_buf[z].FIN = 0;
+            send_buf[packet_index].FIN = 0;
         }
-        send_buf[z].index = z;
-        send_buf[z].ack_num = 0;
+        send_buf[packet_index].index = z;
+        send_buf[packet_index].ack_num = 0;
         
 
-        sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
+        sendto_dbg(ss, &send_buf[packet_index], PACKET_SIZE, 0,
                 (struct sockaddr *)&send_addr, sizeof(send_addr));
         z++;
         /******/
@@ -174,19 +171,19 @@ int main(int argc, char **argv)
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
                 /*printf("I'M HEEEEERRREEE\n");*/
-                recv( sr, &temp_packet, PACKET_SIZE, 0 );
+                /*recv( sr, &temp_packet, PACKET_SIZE, 0 );
                 ack[temp_packet.ack_num] = 1;
-                printf("This packet was acked: %d\n", temp_packet.ack_num);
+                printf("This packet was acked: %d\n", temp_packet.ack_num);*/
            }
 	    } else { /* timeout occurs */
-            int a, b, c;
-            char full = 1;
+            /*int a, b, c;
+            char full = 1;*/
             /*int new_window_start_index;
             new_window_start_index = 0;
             /*while (ack[new_window_start_index] != 0) {
                 new_window_start_index++;
             }*/
-            for (a = 0; a < strlen(ack); a++) {
+            /*for (a = 0; a < strlen(ack); a++) {
                 if (ack[a] == 0) {
                     sendto_dbg(ss, &send_buf[a], PACKET_SIZE, 0,
                             (struct sockaddr *)&send_addr, sizeof(send_addr));
@@ -198,7 +195,7 @@ int main(int argc, char **argv)
                 for (b = 0; b < strlen(ack); b++) {
                     ack[b] = 0;
                 }
-            }
+            }*/
             /*for (c = 0; c < strlen(ack); c++) {
                 if (c+new_window_start_index < strlen(ack)) {
                     ack[c] = ack[c+new_window_start_index];

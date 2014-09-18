@@ -45,8 +45,8 @@ int main()
     if (ss<0) {
         perror("Ucast: socket");
         exit(1);
-    }
-    
+    } 
+
     PromptForHostName(my_name,host_name,NAME_LENGTH);
     
     p_h_ent = gethostbyname(host_name);
@@ -68,6 +68,7 @@ int main()
     FD_SET( (long)0, &mask ); /* stdin */
 
     int i = 0;
+    int packet_index;
     rcv_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
 
     FILE *fw;
@@ -115,6 +116,7 @@ int main()
         timeout.tv_sec = 0;
         timeout.tv_usec = 1000;
 
+        packet_index = i % WINDOW_SIZE;
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
@@ -127,34 +129,33 @@ int main()
 								(htonl(from_ip) & 0x0000ff00)>>8,
 								(htonl(from_ip) & 0x000000ff));
 
-                recv( sr, &rcv_buf[i], PACKET_SIZE, 0 );
-                dummy_ack.ack_num = i;
+                recv( sr, &rcv_buf[packet_index], PACKET_SIZE, 0 );
+                /*dummy_ack.ack_num = i;
                 sendto_dbg( ss, &dummy_ack, PACKET_SIZE, 0,
                         (struct sockaddr *)&send_addr, sizeof(send_addr));
                 printf("This is the dummy ack number: %d\n", i);
-
+*/
 
                 /* last packet case */
-                if (rcv_buf[i].FIN > 0) {
-                    size = rcv_buf[i].FIN;
-                    file_end = 1;
-                    printf("\n*******************\nHIIIIIIIIIIIIIIIIIIII %d\n************\n", rcv_buf[i].FIN);
+                if (rcv_buf[packet_index].FIN > 0) {
+                    size = rcv_buf[packet_index].FIN;
+                    printf("\n*******************\nHIIIIIIIIIIIIIIIIIIII %d\n************\n", rcv_buf[packet_index].FIN);
 
-                    fwrite(&rcv_buf[i].payload, 1, size, fw );
+                    fwrite(&rcv_buf[packet_index].payload, 1, size, fw );
                     break;
                 } else {
                     size = PAYLOAD_SIZE;
                 }
 
-                printf("swag %s\n", rcv_buf[i].payload);
-                fwrite(&rcv_buf[i].payload, 1, size, fw );
-                if (i == 0) {
+                /*printf("swag %s\n", rcv_buf[packet_index].payload);*/
+                fwrite(&rcv_buf[packet_index].payload, 1, size, fw );
+/*                if (i == 0) {
                     int q;
                     for (q = 0; q < WINDOW_SIZE; q++) {
                         if (q+1 < WINDOW_SIZE)
                             rcv_buf[q] = rcv_buf[q+1];
                     }
-                }
+                }*/
                 i++;
 
             }
