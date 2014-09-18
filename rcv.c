@@ -118,7 +118,7 @@ int main()
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                if (i == 15) {
+                if (i == 16) {
                     i = 0;
                 }
                 printf( "Received from (%d.%d.%d.%d)\n", 
@@ -131,7 +131,7 @@ int main()
                 dummy_ack.ack_num = i;
                 sendto_dbg( ss, &dummy_ack, PACKET_SIZE, 0,
                         (struct sockaddr *)&send_addr, sizeof(send_addr));
-                printf("This is the index: %d\n", rcv_buf[i].index);
+                printf("This is the dummy ack number: %d\n", i);
 
                 /* last packet case */
                 if (rcv_buf[i].FIN > 0) {
@@ -147,7 +147,6 @@ int main()
 
                 /*printf("swag %s\n", rcv_buf[i].payload);*/
                 fwrite(&rcv_buf[i].payload, 1, size, fw );
-                if (file_end == 1)
                 i++;
 
             }
