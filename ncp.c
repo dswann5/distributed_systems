@@ -46,9 +46,6 @@ int main(int argc, char **argv)
     int *at_index;
     sendto_dbg_init(loss_rate);
 
-    /****************************
-     * **************
-     ****************************/
     sr = socket(AF_INET, SOCK_DGRAM, 0);  /* socket for receiving (udp) */
     if (sr<0) {
         perror("Ucast: socket");
@@ -91,7 +88,9 @@ int main(int argc, char **argv)
     FD_SET( (long)0, &mask ); /* stdin */
 
     send_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
-    split_string(destination, dest_file_name, dest_comp_name);
+    split_string(destination, &dest_file_name, &dest_comp_name);
+
+    /*printf("heyyyyyyyyyyy\n%s, %s\n", dest_file_name, dest_comp_name);*/
 
     if ((fr = fopen(filename, "r")) == NULL) {
         perror("fopen");
@@ -102,50 +101,43 @@ int main(int argc, char **argv)
 
     int z = 0;
 
-    /*for (z = 0; z < WINDOW_SIZE; z++) {*/
-/*    for(;;) {
-        if (z == 16)
-            z = 0;
-        printf("Packet index %d\n", z);
-            
-        nread = fread(send_buf[z].payload, 1, PAYLOAD_SIZE, fr);
-        
-        /* Checks to see if the file length % PAYLOAD_SIZE == 0 */
-/*        if (nread == 0)
-        {
-           /*TODO possibly put nested infinite for in here,
-            * break when ack received and break after nested for
-           break;*/
-/*        }
-        else if (nread < PAYLOAD_SIZE ) /* checks that we are at EOF */
-/*        {
-            send_buf[z].FIN = nread;
-            printf("FIN is set to %d\n", send_buf[z].FIN);
-            printf("Last char is %d\n",send_buf[z].payload[nread]);
-        }
-        else /* there is more of the file to read */
-/*        {
-            send_buf[z].FIN = 0;
-        }
-        send_buf[z].index = z;
-        send_buf[z].ack_num = 0;
-        
-
-        sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
-                (struct sockaddr *)&send_addr, sizeof(send_addr));
-        z++;
-    }*/
     struct packet temp_packet;
+
+    /* Continue sending first packet until it is acked */
     for(;;)
     {
         temp_mask = mask;
-        timeout.tv_sec = 1;
-	    timeout.tv_usec = 0;
-        /*****/
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 1000;
+
+        strcpy(temp_packet.payload, "test");
+        sendto_dbg(ss, &temp_packet, PACKET_SIZE, 0,
+            (struct sockaddr *)&send_addr, sizeof(send_addr));
+        num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
+        
+        if (num > 0) {
+            if ( FD_ISSET( sr, &temp_mask) ) {
+                recv( sr, &temp_packet, PACKET_SIZE, 0 );
+                printf("First packet is acked\nTemp Packet Payload: %s\n", temp_packet.payload);
+                break;
+            }
+        }
+    }
+
+    /* Send subsequent data packets */
+    for(;;)
+    {
+        temp_mask = mask;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 1000;
+
+            /*****/
         if (z == 16)
             z = 0;
         printf("Packet index %d\n", z);
-            
+
+       
+        /* Read in from the file one packet at a time */   
         nread = fread(send_buf[z].payload, 1, PAYLOAD_SIZE, fr);
         
         /* Checks to see if the file length % PAYLOAD_SIZE == 0 */
@@ -153,13 +145,18 @@ int main(int argc, char **argv)
         {
            /*TODO possibly put nested infinite for in here,
             * break when ack received and break after nested for*/
+
+            /*send_buf[z].FIN = 0;
+            sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
+                (struct sockaddr *)&send_addr, sizeof(send_addr));
+*/
            break;
         }
         else if (nread < PAYLOAD_SIZE ) /* checks that we are at EOF */
         {
             send_buf[z].FIN = nread;
             printf("FIN is set to %d\n", send_buf[z].FIN);
-            printf("Last char is %d\n",send_buf[z].payload[nread]);
+            printf("Last char is %c\n",send_buf[z].payload[nread]);
         }
         else /* there is more of the file to read */
         {
@@ -176,27 +173,12 @@ int main(int argc, char **argv)
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                printf("I'M HEEEEERRREEE\n");
+                /*printf("I'M HEEEEERRREEE\n");*/
                 recv( sr, &temp_packet, PACKET_SIZE, 0 );
                 ack[temp_packet.ack_num] = 1;
-                printf("This packet was acked: %d\n", temp_packet.ack_num);
-                /*from_len = sizeof(from_addr);
-                bytes = recvfrom( sr, mess_buf, sizeof(mess_buf), 0,  
-                          (struct sockaddr *)&from_addr, 
-                          &from_len );
-                mess_buf[bytes] = 0;
-                from_ip = from_addr.sin_addr.s_addr;
-
-                printf( "Received from (%d.%d.%d.%d): %s\n", 
-								(htonl(from_ip) & 0xff000000)>>24,
-								(htonl(from_ip) & 0x00ff0000)>>16,
-								(htonl(from_ip) & 0x0000ff00)>>8,
-								(htonl(from_ip) & 0x000000ff),
-								mess_buf );
-*/
-            }
+                /*printf("This packet was acked: %d\n", temp_packet.ack_num);*/
+           }
 	    } else {
-		    printf(".");
 		    fflush(0);
         }
     }
@@ -214,12 +196,12 @@ void split_string(char *destination, char *dest_file_name, char *dest_comp_name)
     /* Get the first token, aka the destination file name */
     dest_file_name = strtok(destination, delimiter);
    
-    printf( "Destination filename: %s\n", dest_file_name );
+    /*printf( "Destination filename: %s\n", dest_file_name );*/
     
     /* Parse the second token, aka the destination hostname */
     dest_comp_name = strtok(NULL, delimiter);
     
-    printf("Destination: %s\n", dest_comp_name);
+    /*printf("Destination: %s\n", dest_comp_name);*/
 }
 
 void PromptForHostName( char *my_name, char *host_name, size_t max_len ) {

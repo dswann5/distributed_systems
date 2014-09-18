@@ -71,29 +71,53 @@ int main()
     rcv_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
 
     FILE *fw;
-    if ((fw = fopen("test", "wb")) == NULL) {
-        perror("fopen");
-        exit(0);
-    }
     int size;
-    char breakloop = 0;
+    char file_end = 0;
     struct packet dummy_ack;
-
-    for(;;)
+    char *filename;
+    /* Wait for first packet */
+    for (;;)
     {
         temp_mask = mask;
-        timeout.tv_sec = 1;
-	    timeout.tv_usec = 0;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 1000;
+
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-               /* from_len = sizeof(from_addr);
-                bytes = recvfrom( sr, mess_buf, sizeof(mess_buf), 0,  
-                          (struct sockaddr *)&from_addr, 
-                          &from_len );
-                mess_buf[bytes] = 0;
-                from_ip = from_addr.sin_addr.s_addr;
-*/
+                printf( "Received from (%d.%d.%d.%d)\n", 
+								(htonl(from_ip) & 0xff000000)>>24,
+								(htonl(from_ip) & 0x00ff0000)>>16,
+								(htonl(from_ip) & 0x0000ff00)>>8,
+								(htonl(from_ip) & 0x000000ff));
+
+                recv( sr, &dummy_ack, PACKET_SIZE, 0 );
+                filename = dummy_ack.payload;
+
+                printf("First packet received, sending ack");
+                dummy_ack.ack_num = -1;
+                sendto_dbg( ss, &dummy_ack, PACKET_SIZE, 0,
+                        (struct sockaddr *)&send_addr, sizeof(send_addr));
+                break;
+            }
+        }
+    }
+    /* Open file to write to after receiving name in first paylaod */
+    if ((fw = fopen(filename, "wb")) == NULL) {
+        perror("fopen");
+        exit(0);
+    }
+
+    /* Continue receiving data packets */
+    for(;;)
+    {
+        temp_mask = mask;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 1000;
+
+        num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
+        if (num > 0) {
+            if ( FD_ISSET( sr, &temp_mask) ) {
                 if (i == 15) {
                     i = 0;
                 }
@@ -108,32 +132,28 @@ int main()
                 sendto_dbg( ss, &dummy_ack, PACKET_SIZE, 0,
                         (struct sockaddr *)&send_addr, sizeof(send_addr));
                 printf("This is the index: %d\n", rcv_buf[i].index);
+
+                /* last packet case */
                 if (rcv_buf[i].FIN > 0) {
                     size = rcv_buf[i].FIN;
-                    breakloop = 1;
-                    printf("\n*******************\nHIIIIIIIIIIIIIIIIIIII\n************\n");
+                    file_end = 1;
+                    printf("\n*******************\nHIIIIIIIIIIIIIIIIIIII %d\n************\n", rcv_buf[i].FIN);
+
+                    fwrite(&rcv_buf[i].payload, 1, size, fw );
+                    break;
                 } else {
                     size = PAYLOAD_SIZE;
                 }
 
                 /*printf("swag %s\n", rcv_buf[i].payload);*/
                 fwrite(&rcv_buf[i].payload, 1, size, fw );
+                if (file_end == 1)
                 i++;
 
-            }else if( FD_ISSET(0, &temp_mask) ) {
-                /*bytes = read( 0, input_buf, sizeof(input_buf) );
-                input_buf[bytes] = 0;
-                printf( "There is an input: %s\n", input_buf );
-                sendto( ss, input_buf, strlen(input_buf), 0, 
-                    (struct sockaddr *)&send_addr, sizeof(send_addr) );*/
-
             }
-	} else {
-		printf(".");
-		fflush(0);
+	    } else {
+		    fflush(0);
         }
-        if (breakloop == 1)
-            break;
     }
 
     fclose(fw);
