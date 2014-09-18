@@ -100,35 +100,41 @@ int main(int argc, char **argv)
 
     printf("Opened %s for reading...\n", filename);
 
-    int z;
+    int z = 0;
 
-    for (z = 0; z < WINDOW_SIZE; z++) {
+    /*for (z = 0; z < WINDOW_SIZE; z++) {*/
+    do {
+        if (z == 16)
+            z = 0;
         printf("Packet index %d\n", z);
+            
+        nread = fread(send_buf[z].payload, 1, PAYLOAD_SIZE, fr);
         
-	nread = fread(send_buf[z].payload, 1, PAYLOAD_SIZE, fr);
-	
-	/* Checks to see if the file length % PAYLOAD_SIZE == 0 */
-	if (nread == 0)
-	{
-	   /*TODO*/ 
-	}
-	else if (nread < PAYLOAD_SIZE ) /* checks that we are at EOF */
-	{
-	    send_buf[z].FIN = nread;
-	    printf("FIN is set to %d\n", send_buf[z].FIN);
-	    printf("Last char is %d\n",send_buf[z].payload[nread]);
-	}
-	else /* there is more of the file to read */
-	{
-	    send_buf[z].FIN = 0;
-	}
-	send_buf[z].index = z;
-	send_buf[z].ack_num = 0;
-	
-	sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
-            (struct sockaddr *)&send_addr, sizeof(send_addr));
-    }
- 
+        /* Checks to see if the file length % PAYLOAD_SIZE == 0 */
+        if (nread == 0)
+        {
+           /*TODO possibly put nested infinite for in here,
+            * break when ack received and break after nested for*/ 
+           break;
+        }
+        else if (nread < PAYLOAD_SIZE ) /* checks that we are at EOF */
+        {
+            send_buf[z].FIN = nread;
+            printf("FIN is set to %d\n", send_buf[z].FIN);
+            printf("Last char is %d\n",send_buf[z].payload[nread]);
+        }
+        else /* there is more of the file to read */
+        {
+            send_buf[z].FIN = 0;
+        }
+        send_buf[z].index = z;
+        send_buf[z].ack_num = 0;
+        
+
+        sendto_dbg(ss, &send_buf[z], PACKET_SIZE, 0,
+                (struct sockaddr *)&send_addr, sizeof(send_addr));
+        z++;
+    } while (nread != 0);
     /*for(;;)
     {
         temp_mask = mask;

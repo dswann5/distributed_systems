@@ -70,6 +70,13 @@ int main()
     int i = 0;
     rcv_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
 
+    FILE *fw;
+    if ((fw = fopen("test.txt", "wb")) == NULL) {
+        perror("fopen");
+        exit(0);
+    }
+    int size;
+    char breakloop = 0;
     for(;;)
     {
         temp_mask = mask;
@@ -85,17 +92,29 @@ int main()
                 mess_buf[bytes] = 0;
                 from_ip = from_addr.sin_addr.s_addr;
 */
+                if (i == 15) {
+                    i = 0;
+                }
                 printf( "Received from (%d.%d.%d.%d)\n", 
 								(htonl(from_ip) & 0xff000000)>>24,
 								(htonl(from_ip) & 0x00ff0000)>>16,
 								(htonl(from_ip) & 0x0000ff00)>>8,
 								(htonl(from_ip) & 0x000000ff));
 
-                printf("This is the index: %d\n", i);
                 recv( sr, &rcv_buf[i], PACKET_SIZE, 0 );
-                printf("%d\n", rcv_buf[i].index);
-                i++;
 
+                printf("This is the index: %d\n", rcv_buf[i].index);
+                if (rcv_buf[i].FIN > 0) {
+                    size = rcv_buf[i].FIN;
+                    breakloop = 1;
+                    printf("\n*******************\nHIIIIIIIIIIIIIIIIIIII\n************\n");
+                } else {
+                    size = PAYLOAD_SIZE;
+                }
+
+                /*printf("swag %s\n", rcv_buf[i].payload);*/
+                fwrite(&rcv_buf[i].payload, 1, size, fw );
+                i++;
 
             }else if( FD_ISSET(0, &temp_mask) ) {
                 /*bytes = read( 0, input_buf, sizeof(input_buf) );
@@ -108,8 +127,11 @@ int main()
 		printf(".");
 		fflush(0);
         }
+        if (breakloop == 1)
+            break;
     }
 
+    fclose(fw);
     return 0;
 
 }
