@@ -1,0 +1,8 @@
+1. refactor everything.
+2. Fix Sequence Number
+3. Perfect File Case
+4. rcv forever run -- accepting new files
+5. split_string
+6. finish selective repeat/windowing
+7. benchmarks
+8. tcp

@@ -133,6 +133,7 @@ int main()
                         (struct sockaddr *)&send_addr, sizeof(send_addr));
                 printf("This is the dummy ack number: %d\n", i);
 
+
                 /* last packet case */
                 if (rcv_buf[i].FIN > 0) {
                     size = rcv_buf[i].FIN;
@@ -145,8 +146,15 @@ int main()
                     size = PAYLOAD_SIZE;
                 }
 
-                /*printf("swag %s\n", rcv_buf[i].payload);*/
+                printf("swag %s\n", rcv_buf[i].payload);
                 fwrite(&rcv_buf[i].payload, 1, size, fw );
+                if (i == 0) {
+                    int q;
+                    for (q = 0; q < WINDOW_SIZE; q++) {
+                        if (q+1 < WINDOW_SIZE)
+                            rcv_buf[q] = rcv_buf[q+1];
+                    }
+                }
                 i++;
 
             }

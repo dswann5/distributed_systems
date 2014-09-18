@@ -7,7 +7,7 @@ int gethostname(char*,size_t);
 
 void PromptForHostName( char *my_name, char *host_name, size_t max_len ); 
 
-void split_string(char *destination, char *dest_file_name, char *dest_comp_name); 
+void split_string(char *destination, char **dest_file_name, char **dest_comp_name); 
 
 int main(int argc, char **argv)
 {
@@ -90,7 +90,7 @@ int main(int argc, char **argv)
     send_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
     split_string(destination, &dest_file_name, &dest_comp_name);
 
-    /*printf("heyyyyyyyyyyy\n%s, %s\n", dest_file_name, dest_comp_name);*/
+    printf("heyyyyyyyyyyy\n%s, %s\n", dest_file_name, dest_comp_name);
 
     if ((fr = fopen(filename, "r")) == NULL) {
         perror("fopen");
@@ -110,7 +110,7 @@ int main(int argc, char **argv)
         timeout.tv_sec = 0;
         timeout.tv_usec = 1000;
 
-        strcpy(temp_packet.payload, "test");
+        strcpy(temp_packet.payload, "test.txt");
         sendto_dbg(ss, &temp_packet, PACKET_SIZE, 0,
             (struct sockaddr *)&send_addr, sizeof(send_addr));
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
@@ -178,7 +178,36 @@ int main(int argc, char **argv)
                 ack[temp_packet.ack_num] = 1;
                 printf("This packet was acked: %d\n", temp_packet.ack_num);
            }
-	    } else {
+	    } else { /* timeout occurs */
+            int a, b, c;
+            char full = 1;
+            /*int new_window_start_index;
+            new_window_start_index = 0;
+            /*while (ack[new_window_start_index] != 0) {
+                new_window_start_index++;
+            }*/
+            for (a = 0; a < strlen(ack); a++) {
+                if (ack[a] == 0) {
+                    sendto_dbg(ss, &send_buf[a], PACKET_SIZE, 0,
+                            (struct sockaddr *)&send_addr, sizeof(send_addr));
+                    full = 0;
+                }
+            }
+
+            if (full == 1) {
+                for (b = 0; b < strlen(ack); b++) {
+                    ack[b] = 0;
+                }
+            }
+            /*for (c = 0; c < strlen(ack); c++) {
+                if (c+new_window_start_index < strlen(ack)) {
+                    ack[c] = ack[c+new_window_start_index];
+                    send_buf[c] = send_buf[c+new_window_start_index];
+                } else {
+                    ack[c] = 0;
+                }
+
+            }*/
 		    fflush(0);
         }
     }
@@ -189,17 +218,17 @@ int main(int argc, char **argv)
 }
 
 /** Updates dest_file_name and dest_comp_name with tokenized values from destination **/
-void split_string(char *destination, char *dest_file_name, char *dest_comp_name) {
+void split_string(char *destination, char **dest_file_name, char **dest_comp_name) {
 
     const char delimiter[2] = "@";
    
     /* Get the first token, aka the destination file name */
-    dest_file_name = strtok(destination, delimiter);
+    *dest_file_name = strtok(destination, delimiter);
    
     /*printf( "Destination filename: %s\n", dest_file_name );*/
     
     /* Parse the second token, aka the destination hostname */
-    dest_comp_name = strtok(NULL, delimiter);
+    *dest_comp_name = strtok(NULL, delimiter);
     
     /*printf("Destination: %s\n", dest_comp_name);*/
 }
