@@ -108,6 +108,7 @@ int main(int argc, char **argv)
         timeout.tv_sec = 0;
         timeout.tv_usec = 1000;
 
+        temp_packet.index = -1;
         strcpy(temp_packet.payload, dest_file_name);
         sendto_dbg(ss, &temp_packet, PACKET_SIZE, 0,
             (struct sockaddr *)&send_addr, sizeof(send_addr));
@@ -171,9 +172,9 @@ int main(int argc, char **argv)
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
                 /*printf("I'M HEEEEERRREEE\n");*/
-                /*recv( sr, &temp_packet, PACKET_SIZE, 0 );
+                recv( sr, &temp_packet, PACKET_SIZE, 0 );
                 ack[temp_packet.ack_num] = 1;
-                printf("This packet was acked: %d\n", temp_packet.ack_num);*/
+                printf("This packet was acked: %d\n", temp_packet.ack_num);
            }
 	    } else { /* timeout occurs */
             /*int a, b, c;

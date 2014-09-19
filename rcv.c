@@ -46,7 +46,7 @@ int main()
         perror("Ucast: socket");
         exit(1);
     } 
-
+/*
     PromptForHostName(my_name,host_name,NAME_LENGTH);
     
     p_h_ent = gethostbyname(host_name);
@@ -57,7 +57,7 @@ int main()
 
     memcpy( &h_ent, p_h_ent, sizeof(h_ent));
     memcpy( &host_num, h_ent.h_addr_list[0], sizeof(host_num) );
-
+*/
     send_addr.sin_family = AF_INET;
     send_addr.sin_addr.s_addr = host_num; 
     send_addr.sin_port = htons(PORT);
@@ -86,19 +86,25 @@ int main()
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
+                from_len = sizeof(from_addr);
+                recvfrom( sr, &dummy_ack, PACKET_SIZE, 0,
+                        (struct sockaddr *)&from_addr,
+                        &from_len );
+                from_addr.sin_port = htons(PORT);
+                from_ip = from_addr.sin_addr.s_addr;
                 printf( "Received from (%d.%d.%d.%d)\n", 
 								(htonl(from_ip) & 0xff000000)>>24,
 								(htonl(from_ip) & 0x00ff0000)>>16,
 								(htonl(from_ip) & 0x0000ff00)>>8,
 								(htonl(from_ip) & 0x000000ff));
 
-                recv( sr, &dummy_ack, PACKET_SIZE, 0 );
+                printf("%d\n", from_addr);
                 filename = dummy_ack.payload;
 
-                printf("First packet received, sending ack");
+                printf("First packet received, sending ack: %s", dummy_ack.payload);
                 dummy_ack.ack_num = -1;
                 sendto_dbg( ss, &dummy_ack, PACKET_SIZE, 0,
-                        (struct sockaddr *)&send_addr, sizeof(send_addr));
+                        (struct sockaddr *)&from_addr, sizeof(from_addr));
                 break;
             }
         }
@@ -116,31 +122,31 @@ int main()
         timeout.tv_sec = 0;
         timeout.tv_usec = 1000;
 
-        packet_index = i % WINDOW_SIZE;
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                if (i == 16) {
-                    i = 0;
-                }
+                packet_index = i % WINDOW_SIZE;
                 printf( "Received from (%d.%d.%d.%d)\n", 
 								(htonl(from_ip) & 0xff000000)>>24,
 								(htonl(from_ip) & 0x00ff0000)>>16,
 								(htonl(from_ip) & 0x0000ff00)>>8,
 								(htonl(from_ip) & 0x000000ff));
 
-                recv( sr, &rcv_buf[packet_index], PACKET_SIZE, 0 );
-                /*dummy_ack.ack_num = i;
+                recvfrom( sr, &rcv_buf[packet_index], PACKET_SIZE, 0,
+                         (struct sockaddr *)&from_addr,
+                         &from_len );
+                from_addr.sin_port = htons(PORT);
+                dummy_ack.ack_num = i;
                 sendto_dbg( ss, &dummy_ack, PACKET_SIZE, 0,
-                        (struct sockaddr *)&send_addr, sizeof(send_addr));
+                        (struct sockaddr *)&from_addr, sizeof(from_addr));
                 printf("This is the dummy ack number: %d\n", i);
-*/
 
                 /* last packet case */
                 if (rcv_buf[packet_index].FIN > 0) {
                     size = rcv_buf[packet_index].FIN;
                     printf("\n*******************\nHIIIIIIIIIIIIIIIIIIII %d\n************\n", rcv_buf[packet_index].FIN);
 
+                    printf("swiggity swooty %s\n", rcv_buf[packet_index].payload);
                     fwrite(&rcv_buf[packet_index].payload, 1, size, fw );
                     break;
                 } else {
@@ -163,7 +169,6 @@ int main()
 		    fflush(0);
         }
     }
-
     fclose(fw);
     return 0;
 
