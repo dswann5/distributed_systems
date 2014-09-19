@@ -144,13 +144,14 @@ int main()
                 printf("This is the dummy ack number: %d\n", dummy_ack.ack_num);
                 /* write method for this */
                 /* hackily catches when 1st packet fails and 2nd succeeds */
-                if (rcv_buf[0] != NULL) {
+                /*if (&rcv_buf[0]) {
                     /* checks whether to move window up */
-                    if (dummy_packet.index > rcv_buf[0].index) {
+                  /*  if (dummy_packet.index > rcv_buf[0].index) {
                         int window_index;
                         for (window_index = 0; window_index < WINDOW_SIZE; window_index++) {
                             rcv_buf[window_index] = rcv_buf[window_index+1];
                         }
+                    }
                 }
                 /* last packet case */
                 if (rcv_buf[packet_index].FIN > 0) {

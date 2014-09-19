@@ -1,5 +1,9 @@
 shift_window
-last_recvd_ack
+// need to keep track of last_recvd_ack
+
+int curr_seq_num
+packet *window[window_size]
+packet *cum_ack
 
 for(;;) {
 
@@ -7,25 +11,28 @@ for(;;) {
         fread(send_buf[i]);
         send(send_buf[i]);
     }
-    for(to window size) {
-        select //start timer
-        if (not timeout) {
-            recv();
-            if (index < 0)
-                resend index*-1
+    select //start timer
+    if (not timeout) {
+        recv(&cum_ack);
+        shift_window(cum_ack.index - curr_seq_num);
+        for(cum_ack.index - curr_seq_num)
+            fread();
+        for(cum_ack.payload) {
+            if (cum_ack.payload[i] == 0)
+                send(window[payload[i]]);
             else
-                shift_window;
-                for (shift_window)
-                    fread new parts of file
+                ack_array[i] = 1;
         }
-        else {
-            iterate and resend all unacked packets
-        }
+        if (index < 0)
+            resend index*-1
+        else
+            shift_window;
+            for (shift_window)
+                fread new parts of file
     }
 }
 
 shift_window {
-    while -- stop on first null;
     shift window;
     return how many spaces shifted
 }
