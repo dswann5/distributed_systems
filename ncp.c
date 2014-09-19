@@ -171,7 +171,6 @@ int main(int argc, char **argv)
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                /*printf("I'M HEEEEERRREEE\n");*/
                 recv( sr, &temp_packet, PACKET_SIZE, 0 );
                 ack[temp_packet.ack_num] = 1;
                 printf("This packet was acked: %d\n", temp_packet.ack_num);
@@ -213,6 +212,27 @@ int main(int argc, char **argv)
     fclose(fr);
     return 0;
 
+}
+
+/* shifts window over as many spaces are continuously not null,
+ * returns number of spaces shifted */
+int shift_window(char **window, char **ack_array) {
+    int i, j;
+
+    j = 0;
+    while (*ack_array[j] != 0) {
+        j++;   
+    }
+
+    for (i = 0; i < WINDOW_SIZE; i++) {
+        if (i + j < WINDOW_SIZE) {
+            *window[i] = *window[i+j];
+            *ack_array[i] = *ack_array[i+j];
+        } else {
+            *ack_array[i] = 0;
+        }
+    }
+    return j;
 }
 
 /** Updates dest_file_name and dest_comp_name with tokenized values from destination **/

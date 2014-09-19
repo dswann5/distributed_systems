@@ -67,7 +67,6 @@ int main()
     FD_SET( sr, &mask );
     FD_SET( (long)0, &mask ); /* stdin */
 
-    int i = 0;
     int packet_index;
     rcv_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
 
@@ -75,6 +74,7 @@ int main()
     int size;
     char file_end = 0;
     struct packet dummy_ack;
+    struct packet dummy_packet;
     char *filename;
     /* Wait for first packet */
     for (;;)
@@ -125,36 +125,50 @@ int main()
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                packet_index = i % WINDOW_SIZE;
                 printf( "Received from (%d.%d.%d.%d)\n", 
 								(htonl(from_ip) & 0xff000000)>>24,
 								(htonl(from_ip) & 0x00ff0000)>>16,
 								(htonl(from_ip) & 0x0000ff00)>>8,
 								(htonl(from_ip) & 0x000000ff));
 
-                recvfrom( sr, &rcv_buf[packet_index], PACKET_SIZE, 0,
+                recvfrom( sr, &dummy_packet, PACKET_SIZE, 0,
                          (struct sockaddr *)&from_addr,
                          &from_len );
+                packet_index = dummy_packet.index % 16;
+                rcv_buf[packet_index] = dummy_packet;
+
                 from_addr.sin_port = htons(PORT);
-                dummy_ack.ack_num = i;
+                dummy_ack.ack_num = dummy_packet.index;
                 sendto_dbg( ss, &dummy_ack, PACKET_SIZE, 0,
                         (struct sockaddr *)&from_addr, sizeof(from_addr));
-                printf("This is the dummy ack number: %d\n", i);
-
+                printf("This is the dummy ack number: %d\n", dummy_ack.ack_num);
+                /* write method for this */
+                /* hackily catches when 1st packet fails and 2nd succeeds */
+                if (rcv_buf[0] != NULL) {
+                    /* checks whether to move window up */
+                    if (dummy_packet.index > rcv_buf[0].index) {
+                        int window_index;
+                        for (window_index = 0; window_index < WINDOW_SIZE; window_index++) {
+                            rcv_buf[window_index] = rcv_buf[window_index+1];
+                        }
+                }
                 /* last packet case */
                 if (rcv_buf[packet_index].FIN > 0) {
                     size = rcv_buf[packet_index].FIN;
                     printf("\n*******************\nHIIIIIIIIIIIIIIIIIIII %d\n************\n", rcv_buf[packet_index].FIN);
 
-                    printf("swiggity swooty %s\n", rcv_buf[packet_index].payload);
+                    /*printf("swiggity swooty %s\n", rcv_buf[packet_index].payload);*/
                     fwrite(&rcv_buf[packet_index].payload, 1, size, fw );
-                    break;
+                    fclose(fw);
+                    file_end = 1;
+                    /*break;*/
                 } else {
                     size = PAYLOAD_SIZE;
                 }
 
                 /*printf("swag %s\n", rcv_buf[packet_index].payload);*/
-                fwrite(&rcv_buf[packet_index].payload, 1, size, fw );
+                if (file_end == 0)
+                    fwrite(&rcv_buf[packet_index].payload, 1, size, fw );
 /*                if (i == 0) {
                     int q;
                     for (q = 0; q < WINDOW_SIZE; q++) {
@@ -162,14 +176,12 @@ int main()
                             rcv_buf[q] = rcv_buf[q+1];
                     }
                 }*/
-                i++;
-
             }
 	    } else {
 		    fflush(0);
         }
     }
-    fclose(fw);
+    /*fclose(fw);*/
     return 0;
 
 }

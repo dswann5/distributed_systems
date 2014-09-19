@@ -1,7 +1,8 @@
 1. refactor everything.
-2. Fix Sequence Number
 3. Perfect File Case
 4. rcv forever run -- accepting new files
+    a. need to make wait for first packet method in order to get new filename, and open new file in infinite for
+    b. sliding window needs to work for this to work
 5. finish selective repeat/windowing
 6. benchmarks
 7. tcp

@@ -1,0 +1,31 @@
+shift_window
+last_recvd_ack
+
+for(;;) {
+
+    for(to window size) {
+        fread(send_buf[i]);
+        send(send_buf[i]);
+    }
+    for(to window size) {
+        select //start timer
+        if (not timeout) {
+            recv();
+            if (index < 0)
+                resend index*-1
+            else
+                shift_window;
+                for (shift_window)
+                    fread new parts of file
+        }
+        else {
+            iterate and resend all unacked packets
+        }
+    }
+}
+
+shift_window {
+    while -- stop on first null;
+    shift window;
+    return how many spaces shifted
+}

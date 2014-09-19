@@ -1,0 +1,16 @@
+// if packet sequence number is less than sequence number in window[0], disregard
+for(;;) {
+
+    for(window size) {
+        select
+        if (not timeout) {
+            recv();
+            send(ack);
+            shift_window;
+            write to file;
+        }
+        else {
+            iterate and send nacks for all null
+        }
+    }
+}
