@@ -2,8 +2,8 @@
 
 #define NAME_LENGTH 80
 
-int main(int argc, char **argv)
-{
+void print_stats(int is_done);
+
     struct sockaddr_in    name;
     struct sockaddr_in    from_addr;
     socklen_t             from_len;
@@ -27,7 +27,19 @@ int main(int argc, char **argv)
     char                  *filename;
     struct packet         window[WINDOW_SIZE];
 
+    /* Stats globals */
+    int 		  total_data_transferred;
+    struct timeval	  start_time;
+    struct timeval	  local_time;
+
+
+int main(int argc, char **argv)
+{ 
     loss_rate = atoi(argv[1]);
+
+    total_data_transferred = 0;
+    gettimeofday(&start_time, NULL);
+    local_time = (struct timeval){0};
 
     sendto_dbg_init(loss_rate);
     /** begin socket logic **/
@@ -150,6 +162,10 @@ int main(int argc, char **argv)
                     if (rcv_buf.FIN > 0) {
                         printf("RECEIVED FINAL PACKET\n");
                         fwrite(&window[new_index].payload, 1, rcv_buf.FIN, fw );
+
+			total_data_transferred += PAYLOAD_SIZE;
+			print_stats(1);
+
                         fclose(fw);
 			is_done = 1;
                         break;
@@ -167,6 +183,10 @@ int main(int argc, char **argv)
                         while(window[index].index > -1) {
                             index = curr_seq_num % WINDOW_SIZE;
                             fwrite(window[index].payload, 1, PAYLOAD_SIZE, fw);
+
+			    total_data_transferred += PAYLOAD_SIZE;
+		  	    print_stats(0);
+	
                             window[index].index = -1;
                             nack_array[index] = '0';
                             curr_seq_num++;
@@ -196,4 +216,39 @@ int main(int argc, char **argv)
     }
     /*fclose(fw);*/
     return 0;
+}
+
+void print_stats(int is_done)
+{
+    /* Print stats for every 50 MB */
+    if (total_data_transferred % PAYLOAD_SIZE == 0)/*(50*1048576) == 0)*/
+    {
+	printf("**********************************************************************\n");
+	printf("Current Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/
+
+	/* Find the current time for later comparison */
+	struct timeval temp_time;
+	gettimeofday(&temp_time);
+
+	/* Calculate time in microseconds since last 50 MB transfer*/
+ 	float local_elapsed_time = (temp_time.tv_sec-local_time.tv_sec)*1000000.0 + temp_time.tv_usec-local_time.tv_usec;
+
+	printf("Local elapsed time: %f microseconds\n", local_elapsed_time);	
+	printf("Average transfer rate: %f Mbits/s\n", /*(50*131072)*/(PAYLOAD_SIZE/8) / (local_elapsed_time/1000000.0));
+
+	/* Reset elapsed time */
+	gettimeofday(&local_time);
+    }
+    if (is_done == 1) /* print final stats */
+    {
+	struct timeval end_time;
+	gettimeofday(&end_time);
+	unsigned long total_elapsed = (end_time.tv_sec-start_time.tv_sec)*1000000.0 + end_time.tv_usec-start_time.tv_usec;
+	float average_transfer_rate = (total_data_transferred/8.0)/(total_elapsed/1000000.0); 
+	
+	printf("***********************************************************************\n");
+	printf("Total Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/	
+   	printf("Total time elapsed: %lu us \n", total_elapsed);
+	printf("Total average transfer rate: %f Mbit/s \n", average_transfer_rate);
+    }
 }

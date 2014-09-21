@@ -34,8 +34,8 @@ void print_stats(int is_done);
 
     FILE *fr;
 
+    /* Stats globals */
     int 		  total_data_transferred;
-
     struct timeval	  start_time;
     struct timeval	  local_time;
 
