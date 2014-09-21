@@ -127,8 +127,9 @@ int main(int argc, char **argv)
     int is_done = 0;
     
     /* Continue receiving data packets */
-    int x;
-    for (x = 0; x < 26; x++)
+    /*int x;
+    for (x = 0; x < 26; x++)*/
+    for (;;)
     {
         temp_mask = mask;
         timeout.tv_sec = 0;
@@ -163,11 +164,11 @@ int main(int argc, char **argv)
                         printf("RECEIVED FINAL PACKET\n");
                         fwrite(&window[new_index].payload, 1, rcv_buf.FIN, fw );
 
-			total_data_transferred += PAYLOAD_SIZE;
-			print_stats(1);
+                        total_data_transferred += PAYLOAD_SIZE;
+                        print_stats(1);
 
                         fclose(fw);
-			is_done = 1;
+                        is_done = 1;
                         break;
                     }
                     /** HACK **/
@@ -184,8 +185,8 @@ int main(int argc, char **argv)
                             index = curr_seq_num % WINDOW_SIZE;
                             fwrite(window[index].payload, 1, PAYLOAD_SIZE, fw);
 
-			    total_data_transferred += PAYLOAD_SIZE;
-		  	    print_stats(0);
+                            total_data_transferred += PAYLOAD_SIZE;
+                            print_stats(0);
 	
                             window[index].index = -1;
                             nack_array[index] = '0';

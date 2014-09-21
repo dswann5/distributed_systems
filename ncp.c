@@ -115,7 +115,6 @@ int main(int argc, char **argv)
         timeout.tv_sec = 0;
         timeout.tv_usec = 1000000;
 
-        /*first_packet.index = -1;*/
         strcpy(first_packet.payload, dest_file_name);
         first_packet.FIN = 0;
         first_packet.index = -1;
@@ -147,14 +146,16 @@ int main(int argc, char **argv)
     last_sent_sn = 0;
 
     /* Send subsequent data packets */
-    int x;
     int is_done = 0;
-    for(x = 0; x < 26; x++)
+    int size;
+    /*int x;
+    for(x = 0; x < 26; x++)*/
+    for(;;)
     {
-	if (is_done == 1)
-	{
-	     break;
-	}
+        if (is_done == 1)
+        {
+             break;
+        }
         temp_mask = mask;
         timeout.tv_sec = 0;
         timeout.tv_usec = 10;
@@ -167,10 +168,10 @@ int main(int argc, char **argv)
                 sendto_dbg(ss, (const char *)&window[last_sent_sn], PACKET_SIZE, 0,
                     (struct sockaddr *)&send_addr, sizeof(send_addr));
 
-		total_data_transferred += PAYLOAD_SIZE;
-		print_stats(0);
-		
-		last_sent_sn++;
+                total_data_transferred += PAYLOAD_SIZE;
+                print_stats(0);
+                
+                last_sent_sn++;
             }
         }
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
@@ -192,9 +193,9 @@ int main(int argc, char **argv)
                         window[i].index = last_sent_sn;
                         if (nread < PAYLOAD_SIZE) {
                             window[i].FIN = PAYLOAD_SIZE;
-			    print_stats(1);
+                            print_stats(1);
                             is_done = 1;
-			    break;
+                            break;
                         }
                         else
                             window[i].FIN = 0;
@@ -209,7 +210,12 @@ int main(int argc, char **argv)
                             j = j % WINDOW_SIZE;
                         }
                         if (ack.payload[j] == '0') {
-                            sendto_dbg(ss, (const char *)&window[j], PACKET_SIZE, 0,
+                            if (window[j].FIN > 0) {
+                                size = window[j].FIN;
+                            } else {
+                                size = PACKET_SIZE;
+                            }
+                            sendto_dbg(ss, (const char *)&window[j], size, 0,
                                 (struct sockaddr *)&send_addr, sizeof(send_addr));
 
                         } else {
