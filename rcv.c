@@ -108,7 +108,10 @@ int main(int argc, char **argv)
         nack_array[i] = '0';
     }
     printf("%s\n", nack_array);
-    /* initialize curr_seq_num */
+
+    /* initialize curr_seq_num 
+     * @swanee, maybe rename this to be consistent with ncp
+     * last_acked_sn */
     curr_seq_num = 0;
 
     /* Continue receiving data packets */
@@ -132,11 +135,13 @@ int main(int argc, char **argv)
                     recvfrom( sr, &rcv_buf, PACKET_SIZE, 0,
                              (struct sockaddr *)&from_addr,
                              &from_len );
+                    
+                    /** checks if received packet is first packet **/
                     if (rcv_buf.index < 0)
                         break;
                     printf("Sequence Number: %i, Payload: %s, Curr: %i\n", rcv_buf.index, rcv_buf.payload, curr_seq_num);
 
-                    /** HACK **/
+                    /** HACK to find FIN **/
                     if (rcv_buf.FIN > 0) {
                         printf("RECEIVED FINAL PACKET\n");
                         fwrite(&window[new_index].payload, 1, rcv_buf.FIN, fw );
@@ -152,6 +157,7 @@ int main(int argc, char **argv)
                         nack_array[new_index] = '1';
                         printf("\nCOWABUNGA %s\n", nack_array);
                         /**shift the window**/
+                        index = curr_seq_num % WINDOW_SIZE;
                         while(window[index].index > -1) {
                             index = curr_seq_num % WINDOW_SIZE;
                             fwrite(window[index].payload, 1, PAYLOAD_SIZE, fw);
@@ -165,15 +171,15 @@ int main(int argc, char **argv)
                 }
             }
         }
-        /*if (rcv_buf.index < 0) { /** make sure first packet ack is sent properly **/
-        /*    ack.ack_num = rcv_buf.index;
+        if (rcv_buf.index < 0) { /** make sure first packet ack is sent properly **/
+            ack.ack_num = rcv_buf.index;
         } else {
             ack.ack_num = curr_seq_num;
             strcpy( ack.payload, nack_array);
-        }*/
-        ack.ack_num = curr_seq_num;
+        }
+        /*ack.ack_num = curr_seq_num;
         strcpy( ack.payload, nack_array);
-
+*/
         from_addr.sin_port = htons(PORT);
         printf("sent ack, ack_num: %i, payload: %s\n", ack.ack_num, ack.payload);
         sendto_dbg( ss, (const char *)&ack, PACKET_SIZE, 0,

@@ -130,10 +130,12 @@ int main(int argc, char **argv)
         window[i].FIN = -1;
         window[i].index = -1;
         window[i].ack_num = -1;
+        ack_array[i] = '0';
     }
     /** initialize sequence numbers**/
     last_acked_sn = 0;
     last_sent_sn = 0;
+
     /* Send subsequent data packets */
     int x;
     for(x = 0; x < 26; x++)
@@ -161,8 +163,11 @@ int main(int argc, char **argv)
                 if (ack.ack_num > last_acked_sn) {
                     printf("Ack Number: %i, Payload: %s\n", ack.ack_num, ack.payload);
                     new_sn = ack.ack_num - last_acked_sn;
-                     i = last_acked_sn % WINDOW_SIZE; /**ugly, but mod is expensive**/
+
+                    /** moves send window up to where rcv window is
+                     * based on cum ack val **/
                     while(last_acked_sn < new_sn) {
+                        i = last_acked_sn % WINDOW_SIZE;
                         nread = fread(window[i].payload, 1, PAYLOAD_SIZE, fr);
                         ack_array[i] = '0';
                         window[i].index = last_sent_sn;
@@ -172,10 +177,12 @@ int main(int argc, char **argv)
                         }
                         else
                             window[i].FIN = 0;
-                        i++; /**ugly, but mod is expensive**/
                         last_acked_sn++;
                         last_sent_sn++;
                     }
+
+                    /** @swannee call j something different 
+                     * acks or resends window based on cum ack payload **/
                     j = last_acked_sn % WINDOW_SIZE;
                     for(i = 0; i < WINDOW_SIZE; i++) {
                         if (j > WINDOW_SIZE) {
@@ -192,6 +199,8 @@ int main(int argc, char **argv)
                     }
                 }
            }
+        /** Upon timeout for receiving ack, iterate and send all
+         * 0's in the ack array **/
 	    } else {
             for(i = 0; i < WINDOW_SIZE; i++) {
                 if (ack_array[i] == '0') {
