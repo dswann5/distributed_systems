@@ -18,7 +18,7 @@ int main(int argc, char **argv)
     int                   i;
     int                   new_index, index;
     int                   curr_seq_num;
-    char         nack_array[WINDOW_SIZE];
+    char         	  nack_array[WINDOW_SIZE];
 
     FILE                  *fw;
     struct packet         ack;
@@ -110,17 +110,22 @@ int main(int argc, char **argv)
     printf("%s\n", nack_array);
 
     /* initialize curr_seq_num 
-     * @swanee, maybe rename this to be consistent with ncp
      * last_acked_sn */
     curr_seq_num = 0;
-
+    int is_done = 0;
+    
     /* Continue receiving data packets */
     int x;
-    for(x = 0; x < 26; x++)
+    for (x = 0; x < 26; x++)
     {
         temp_mask = mask;
         timeout.tv_sec = 0;
         timeout.tv_usec = 10;
+
+	if (is_done == 1)
+	{
+	    break;
+	}
 
         for (i = 0; i < WINDOW_SIZE / 2; i++) {
             num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
@@ -146,6 +151,7 @@ int main(int argc, char **argv)
                         printf("RECEIVED FINAL PACKET\n");
                         fwrite(&window[new_index].payload, 1, rcv_buf.FIN, fw );
                         fclose(fw);
+			is_done = 1;
                         break;
                     }
                     /** HACK **/

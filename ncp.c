@@ -4,9 +4,8 @@
 #define NAME_LENGTH 80
 
 void split_string(char *destination, char **dest_file_name, char **dest_comp_name); 
+void print_stats(int is_done);
 
-int main(int argc, char **argv)
-{
     struct sockaddr_in    name;
     struct sockaddr_in    send_addr;
     struct hostent        h_ent;
@@ -35,9 +34,20 @@ int main(int argc, char **argv)
 
     FILE *fr;
 
+    int 		  total_data_transferred;
+
+    struct timeval	  start_time;
+    struct timeval	  local_time;
+
+
+int main(int argc, char **argv)
+{
     loss_rate = atoi(argv[1]);
     filename = argv[2];
     destination = argv[3];
+    total_data_transferred = 0;
+    gettimeofday(&start_time, NULL);
+    local_time = (struct timeval){0};
 
     /** set loss rate **/
     sendto_dbg_init(loss_rate);
@@ -118,7 +128,7 @@ int main(int argc, char **argv)
             if ( FD_ISSET( sr, &temp_mask) ) {
                 recv( sr, &ack, PACKET_SIZE, 0 );
                 if (ack.ack_num == -1) {
-                    printf("First packet is acked\nTemp Packet Payload: %s, Temp Packet Ack Num: %i\n", ack.payload, ack.ack_num);
+                    printf("First packet is acked\nFirst Packet Payload: %s, First Packet Ack Num: %i\n", ack.payload, ack.ack_num);
                     break;
                 }
             }
@@ -138,8 +148,13 @@ int main(int argc, char **argv)
 
     /* Send subsequent data packets */
     int x;
+    int is_done = 0;
     for(x = 0; x < 26; x++)
     {
+	if (is_done == 1)
+	{
+	     break;
+	}
         temp_mask = mask;
         timeout.tv_sec = 0;
         timeout.tv_usec = 10;
@@ -151,7 +166,11 @@ int main(int argc, char **argv)
                 window[last_sent_sn].index = last_sent_sn;
                 sendto_dbg(ss, (const char *)&window[last_sent_sn], PACKET_SIZE, 0,
                     (struct sockaddr *)&send_addr, sizeof(send_addr));
-                last_sent_sn++;
+
+		total_data_transferred += PAYLOAD_SIZE;
+		print_stats(0);
+		
+		last_sent_sn++;
             }
         }
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
@@ -173,7 +192,9 @@ int main(int argc, char **argv)
                         window[i].index = last_sent_sn;
                         if (nread < PAYLOAD_SIZE) {
                             window[i].FIN = PAYLOAD_SIZE;
-                            break;
+			    print_stats(1);
+                            is_done = 1;
+			    break;
                         }
                         else
                             window[i].FIN = 0;
@@ -181,8 +202,7 @@ int main(int argc, char **argv)
                         last_sent_sn++;
                     }
 
-                    /** @swannee call j something different 
-                     * acks or resends window based on cum ack payload **/
+                    /* acks or resends window based on cum ack payload **/
                     j = last_acked_sn % WINDOW_SIZE;
                     for(i = 0; i < WINDOW_SIZE; i++) {
                         if (j > WINDOW_SIZE) {
@@ -231,4 +251,39 @@ void split_string(char *destination, char **dest_file_name, char **dest_comp_nam
     *dest_comp_name = strtok(NULL, delimiter);
     
     /*printf("Destination: %s\n", *dest_comp_name);*/
+}
+
+void print_stats(int is_done)
+{
+    /* Print stats for every 50 MB */
+    if (total_data_transferred % PAYLOAD_SIZE == 0)/*(50*1048576) == 0)*/
+    {
+	printf("**********************************************************************\n");
+	printf("Current Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/
+
+	/* Find the current time for later comparison */
+	struct timeval temp_time;
+	gettimeofday(&temp_time);
+
+	/* Calculate time in microseconds since last 50 MB transfer*/
+ 	float local_elapsed_time = (temp_time.tv_sec-local_time.tv_sec)*1000000.0 + temp_time.tv_usec-local_time.tv_usec;
+
+	printf("Local elapsed time: %f microseconds\n", local_elapsed_time);	
+	printf("Average transfer rate: %f Mbits/s\n", /*(50*131072)*/(PAYLOAD_SIZE/8) / (local_elapsed_time/1000000.0));
+
+	/* Reset elapsed time */
+	gettimeofday(&local_time);
+    }
+    if (is_done == 1) /* print final stats */
+    {
+	struct timeval end_time;
+	gettimeofday(&end_time);
+	unsigned long total_elapsed = (end_time.tv_sec-start_time.tv_sec)*1000000.0 + end_time.tv_usec-start_time.tv_usec;
+	float average_transfer_rate = (total_data_transferred/8.0)/(total_elapsed/1000000.0); 
+	
+	printf("***********************************************************************\n");
+	printf("Total Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/	
+   	printf("Total time elapsed: %lu us \n", total_elapsed);
+	printf("Total average transfer rate: %f Mbit/s \n", average_transfer_rate);
+    }
 }

@@ -16,6 +16,6 @@
 #include "sendto_dbg.h"
 
 #define PORT	     10100
-#define WINDOW_SIZE 16
+#define WINDOW_SIZE 32
 #define MAX_MESS_LEN 1400
 #define MEGABYTE 52428800
