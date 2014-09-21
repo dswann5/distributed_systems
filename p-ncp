@@ -3,36 +3,32 @@ shift_window
 
 int curr_seq_num
 packet *window[window_size]
+char *ack_array
 packet *cum_ack
 
 for(;;) {
 
-    for(to window size) {
-        fread(send_buf[i]);
-        send(send_buf[i]);
+    if(window[0] == null) {
+        for(to window_size) {
+            fread(send_buf[i]);
+            send(send_buf[i]);
+        }
     }
     select //start timer
     if (not timeout) {
         recv(&cum_ack);
-        shift_window(cum_ack.index - curr_seq_num);
         for(cum_ack.index - curr_seq_num)
-            fread();
+            fread()
+            window[curr_seq_num] //MOD
+            ack[curr_seq_num] = 0
+            curr_seq_num++;
         for(cum_ack.payload) {
             if (cum_ack.payload[i] == 0)
                 send(window[payload[i]]);
             else
                 ack_array[i] = 1;
         }
-        if (index < 0)
-            resend index*-1
-        else
-            shift_window;
-            for (shift_window)
-                fread new parts of file
+    } else {
+        iterate through ack and resend unacked packets
     }
-}
-
-shift_window {
-    shift window;
-    return how many spaces shifted
 }

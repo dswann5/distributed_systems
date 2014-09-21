@@ -1,6 +1,93 @@
 John An
 Daniel Swann
 
+-------------
+NOTE: We've recently rethought our logic and have decided to use circular arrays and cumulative packets in our implementation, so much of the logic in the rest of the Design Doc and the current implementation is outdated. Here is some pseudo code that reflects what we plan to implement this weekend.
+
+ncp
+shift_window
+// need to keep track of last_recvd_ack
+
+int curr_seq_num
+packet *window[window_size]
+packet *cum_ack
+
+for(;;) {
+
+    for(to window size) {
+        fread(send_buf[i]);
+        send(send_buf[i]);
+    }
+    select //start timer
+    if (not timeout) {
+        recv(&cum_ack);
+        shift_window(cum_ack.index - curr_seq_num);
+        for(cum_ack.index - curr_seq_num)
+            fread();
+        for(cum_ack.payload) {
+            if (cum_ack.payload[i] == 0)
+                send(window[payload[i]]);
+            else
+                ack_array[i] = 1;
+        }
+        if (index < 0)
+            resend index*-1
+        else
+            shift_window;
+            for (shift_window)
+                fread new parts of file
+    }
+}
+
+shift_window {
+    shift window;
+    return how many spaces shifted
+}
+
+
+rcv
+// need to keep track of smallest received ack
+
+int curr_seq_num //sequence number of first index of our window
+packet *window[window_size] //window
+packet *rcv_buf//receive buffer
+char *nack_array
+packet *cum_ack
+
+for(;;) {
+    select
+    if (not timeout) {
+        recv(&packet);
+        if (curr_seq_num > packet.index)
+            //have already received packet, disregard
+        window[packet.index % window_size] = packet;
+        nack_array[packet.index % window_size] = 1;
+        shift_window();
+        cum_ack.index = curr_seq_num;
+        cum_ack.payload = nack_array;
+        send(ack);
+    }
+}
+
+shift_window {
+    int i, j = 0;
+    while(window[curr_seq_num].index > -1) {
+        write window[curr_seq_num];
+        window[curr_seq_num].index = 1;
+        nack_array[curr_seq_num] = 0;
+        curr_seq_num++;
+        i++;
+    }
+}
+
+cumulative_ack {
+    sequence number of last non-null packet in a row //updates window
+    array of bools
+}
+-------------
+Begin old design-doc
+-------------
+
 Distributed Systems Assignment 1 Design Doc.
 
 We will transfer the file in custom packets. Our packet will contain a sequence number integer, an acknowledgement number integer, an array of bytes of size 2^12, and an integer FIN field that is either set to 0 or the index of the EOF character in the packet array.
