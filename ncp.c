@@ -1,51 +1,56 @@
 #include "net_include.h"
 #include <assert.h>
 
-#define NAME_LENGTH 80
-
-int gethostname(char*,size_t);
-
-void PromptForHostName( char *my_name, char *host_name, size_t max_len ); 
-
 void split_string(char *destination, char **dest_file_name, char **dest_comp_name); 
+void print_stats(int is_done);
 
-int main(int argc, char **argv)
-{
     struct sockaddr_in    name;
     struct sockaddr_in    send_addr;
-    struct sockaddr_in    from_addr;
-    socklen_t             from_len;
     struct hostent        h_ent;
     struct hostent        *p_h_ent;
-    char                  host_name[NAME_LENGTH] = {'\0'};
-    char                  my_name[NAME_LENGTH] = {'\0'};
     int                   host_num;
-    int                   from_ip;
     int                   ss,sr;
     fd_set                mask;
     fd_set                dummy_mask,temp_mask;
-    int                   bytes;
     int                   num;
-    struct packet         *send_buf;
-    char                  ack[WINDOW_SIZE];
     struct timeval        timeout;
 
-    /**added**/
-    int loss_rate = atoi(argv[1]);
-    char *filename = argv[2];
-    char *destination = argv[3];
-    char *dest_file_name; /* file name to be written at the receiver */
-    char *dest_comp_name; /* receiver hostname */
+    int                   i, j;
+    int                   new_sn, last_acked_sn, last_sent_sn;
+    int                   nread;
+    struct packet         first_packet; /* the first packet, contains the sender's filename */
+    struct packet         ack;
 
-    int i;
-    int nread;
-    int ret;
+    int                   loss_rate;
+    char                  *filename;
+    char                  *destination;
+    char                  *dest_file_name; /* file name to be written at the receiver */
+    char                  *dest_comp_name; /* receiver hostname */
+
+    struct packet         window[WINDOW_SIZE];
+    char                  ack_array[WINDOW_SIZE];
 
     FILE *fr;
 
-    int *at_index;
+    /* Stats globals */
+    int 		  total_data_transferred;
+    struct timeval	  start_time;
+    struct timeval	  local_time;
+
+
+int main(int argc, char **argv)
+{
+    loss_rate = atoi(argv[1]);
+    filename = argv[2];
+    destination = argv[3];
+    total_data_transferred = 0;
+    gettimeofday(&start_time, NULL);
+    local_time = (struct timeval){0};
+
+    /** set loss rate **/
     sendto_dbg_init(loss_rate);
 
+    /** begin socket logic **/
     sr = socket(AF_INET, SOCK_DGRAM, 0);  /* socket for receiving (udp) */
     if (sr<0) {
         perror("Ucast: socket");
@@ -66,10 +71,11 @@ int main(int argc, char **argv)
         perror("Ucast: socket");
         exit(1);
     }
-    
-    /*PromptForHostName(my_name,host_name,NAME_LENGTH);*/
+
+    /** properly parse argv[3] **/
+    destination = argv[3];
     split_string(destination, &dest_file_name, &dest_comp_name);
-   
+
     p_h_ent = gethostbyname(dest_comp_name);
     if ( p_h_ent == NULL ) {
         printf("Ucast: gethostbyname error.\n");
@@ -88,8 +94,10 @@ int main(int argc, char **argv)
     FD_SET( sr, &mask );
     FD_SET( (long)0, &mask ); /* stdin */
 
-    send_buf = malloc(WINDOW_SIZE * sizeof(struct packet));
+    /** end socket logic **/
 
+
+    /** open file for reading **/
     if ((fr = fopen(filename, "r")) == NULL) {
         perror("fopen");
         exit(0);
@@ -97,114 +105,132 @@ int main(int argc, char **argv)
 
     printf("Opened %s for reading...\n", filename);
 
-    int z = 0;
-    int packet_index;
-    struct packet temp_packet;
 
     /* Continue sending first packet until it is acked */
     for(;;)
     {
         temp_mask = mask;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 1000;
+        timeout.tv_usec = TIMEOUT_USEC;
 
-        temp_packet.index = -1;
-        strcpy(temp_packet.payload, dest_file_name);
-        sendto_dbg(ss, &temp_packet, PACKET_SIZE, 0,
+        strcpy(first_packet.payload, dest_file_name);
+        first_packet.FIN = 0;
+        first_packet.index = -1;
+
+        sendto_dbg(ss, (const char *)&first_packet, PACKET_SIZE, 0,
             (struct sockaddr *)&send_addr, sizeof(send_addr));
+
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
-        
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                recv( sr, &temp_packet, PACKET_SIZE, 0 );
-                printf("First packet is acked\nTemp Packet Payload: %s\n", temp_packet.payload);
-                break;
+                recv( sr, &ack, PACKET_SIZE, 0 );
+                if (ack.ack_num == -1) {
+                    printf("First packet is acked\nFirst Packet Payload: %s, First Packet Ack Num: %i\n", ack.payload, ack.ack_num);
+                    break;
+                }
             }
         }
     }
 
+    /** initialize window **/
+    for (i = 0; i < WINDOW_SIZE; i++) {
+        window[i].FIN = -1;
+        window[i].index = -1;
+        window[i].ack_num = -1;
+        ack_array[i] = '0';
+    }
+    /** initialize sequence numbers**/
+    last_acked_sn = 0;
+    last_sent_sn = 0;
+
     /* Send subsequent data packets */
+    int is_done = 0;
+    int size;
+    /*int x;
+    for(x = 0; x < 26; x++)*/
     for(;;)
     {
+        if (is_done == 1)
+        {
+             break;
+        }
         temp_mask = mask;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 1000;
+        timeout.tv_usec = TIMEOUT_USEC;
 
-            /*****/
-        packet_index = z % WINDOW_SIZE;
-        printf("Packet index %d\n", z);
+        if(window[0].index < 0) {
+            /** send whole first window, think about catching FIN in first window **/
+            while (last_sent_sn < WINDOW_SIZE) {
+                nread = fread(window[last_sent_sn].payload, 1, PAYLOAD_SIZE, fr);
+                window[last_sent_sn].index = last_sent_sn;
+                sendto_dbg(ss, (const char *)&window[last_sent_sn], PACKET_SIZE, 0,
+                    (struct sockaddr *)&send_addr, sizeof(send_addr));
 
-       
-        /* Read in from the file one packet at a time */   
-        nread = fread(send_buf[packet_index].payload, 1, PAYLOAD_SIZE, fr);
-        
-        /* Checks to see if the file length % PAYLOAD_SIZE == 0 */
-        if (nread == 0)
-        {
-           /*TODO possibly put nested infinite for in here,
-            * break when ack received and break after nested for*/
-
-            /*send_buf[packet_index].FIN = 0;
-            sendto_dbg(ss, &send_buf[packet_index], PACKET_SIZE, 0,
-                (struct sockaddr *)&send_addr, sizeof(send_addr));
-*/
-           break;
+                total_data_transferred += PAYLOAD_SIZE;
+                print_stats(0);
+                
+                last_sent_sn++;
+            }
         }
-        else if (nread < PAYLOAD_SIZE ) /* checks that we are at EOF */
-        {
-            send_buf[packet_index].FIN = nread;
-            printf("FIN is set to %d\n", send_buf[packet_index].FIN);
-            printf("Last char is %c\n",send_buf[packet_index].payload[nread]);
-        }
-        else /* there is more of the file to read */
-        {
-            send_buf[packet_index].FIN = 0;
-        }
-        send_buf[packet_index].index = z;
-        send_buf[packet_index].ack_num = 0;
-        
-
-        sendto_dbg(ss, &send_buf[packet_index], PACKET_SIZE, 0,
-                (struct sockaddr *)&send_addr, sizeof(send_addr));
-        z++;
-        /******/
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
             if ( FD_ISSET( sr, &temp_mask) ) {
-                recv( sr, &temp_packet, PACKET_SIZE, 0 );
-                ack[temp_packet.ack_num] = 1;
-                printf("This packet was acked: %d\n", temp_packet.ack_num);
+                recv( sr, &ack, PACKET_SIZE, 0 );
+                
+                /** need to catch rogue acks for first header HACKY CONDITIONAL**/
+                if (ack.ack_num > last_acked_sn) {
+                    new_sn = ack.ack_num - last_acked_sn;
+
+                    /** moves send window up to where rcv window is
+                     * based on cum ack val **/
+                    while(last_acked_sn < new_sn) {
+                        i = last_acked_sn % WINDOW_SIZE;
+                        nread = fread(window[i].payload, 1, PAYLOAD_SIZE, fr);
+                        ack_array[i] = '0';
+                        window[i].index = last_sent_sn;
+                        if (nread < PAYLOAD_SIZE) {
+                            window[i].FIN = PAYLOAD_SIZE;
+                            print_stats(1);
+                            is_done = 1;
+                            break;
+                        }
+                        else
+                            window[i].FIN = 0;
+                        last_acked_sn++;
+                        last_sent_sn++;
+                    }
+
+                    /* acks or resends window based on cum ack payload **/
+                    j = last_acked_sn % WINDOW_SIZE;
+                    for(i = 0; i < WINDOW_SIZE; i++) {
+                        if (j > WINDOW_SIZE) {
+                            j = j % WINDOW_SIZE;
+                        }
+                        if (ack.payload[j] == '0') {
+                            if (window[j].FIN > 0) {
+                                size = window[j].FIN;
+                            } else {
+                                size = PACKET_SIZE;
+                            }
+                            sendto_dbg(ss, (const char *)&window[j], size, 0,
+                                (struct sockaddr *)&send_addr, sizeof(send_addr));
+
+                        } else {
+                            ack_array[j] = '1';
+                        }
+                        j++;
+                    }
+                }
            }
-	    } else { /* timeout occurs */
-            /*int a, b, c;
-            char full = 1;*/
-            /*int new_window_start_index;
-            new_window_start_index = 0;
-            /*while (ack[new_window_start_index] != 0) {
-                new_window_start_index++;
-            }*/
-            /*for (a = 0; a < strlen(ack); a++) {
-                if (ack[a] == 0) {
-                    sendto_dbg(ss, &send_buf[a], PACKET_SIZE, 0,
-                            (struct sockaddr *)&send_addr, sizeof(send_addr));
-                    full = 0;
+        /** Upon timeout for receiving ack, iterate and send all
+         * 0's in the ack array **/
+	    } else {
+            for(i = 0; i < WINDOW_SIZE; i++) {
+                if (ack_array[i] == '0') {
+                    sendto_dbg(ss, (const char *)&window[i], PACKET_SIZE, 0,
+                        (struct sockaddr *)&send_addr, sizeof(send_addr));
                 }
             }
-
-            if (full == 1) {
-                for (b = 0; b < strlen(ack); b++) {
-                    ack[b] = 0;
-                }
-            }*/
-            /*for (c = 0; c < strlen(ack); c++) {
-                if (c+new_window_start_index < strlen(ack)) {
-                    ack[c] = ack[c+new_window_start_index];
-                    send_buf[c] = send_buf[c+new_window_start_index];
-                } else {
-                    ack[c] = 0;
-                }
-
-            }*/
 		    fflush(0);
         }
     }
@@ -212,27 +238,6 @@ int main(int argc, char **argv)
     fclose(fr);
     return 0;
 
-}
-
-/* shifts window over as many spaces are continuously not null,
- * returns number of spaces shifted */
-int shift_window(char **window, char **ack_array) {
-    int i, j;
-
-    j = 0;
-    while (*ack_array[j] != 0) {
-        j++;   
-    }
-
-    for (i = 0; i < WINDOW_SIZE; i++) {
-        if (i + j < WINDOW_SIZE) {
-            *window[i] = *window[i+j];
-            *ack_array[i] = *ack_array[i+j];
-        } else {
-            *ack_array[i] = 0;
-        }
-    }
-    return j;
 }
 
 /** Updates dest_file_name and dest_comp_name with tokenized values from destination **/
@@ -243,32 +248,45 @@ void split_string(char *destination, char **dest_file_name, char **dest_comp_nam
     /* Get the first token, aka the destination file name */
     *dest_file_name = strtok(destination, delimiter);
    
-    /*printf( "Destination filename: %s\n", dest_file_name );*/
+    /*printf( "Destination filename: %s\n", *dest_file_name );*/
     
     /* Parse the second token, aka the destination hostname */
     *dest_comp_name = strtok(NULL, delimiter);
     
-    /*printf("Destination: %s\n", dest_comp_name);*/
+    /*printf("Destination: %s\n", *dest_comp_name);*/
 }
 
-void PromptForHostName( char *my_name, char *host_name, size_t max_len ) {
+void print_stats(int is_done)
+{
+    /* Print stats for every 50 MB */
+    if (total_data_transferred % PAYLOAD_SIZE == 0)/*(50*1048576) == 0)*/
+    {
+        printf("**********************************************************************\n");
+        printf("Current Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/
 
-    char *c;
+        /* Find the current time for later comparison */
+        struct timeval temp_time;
+        gettimeofday(&temp_time);
 
-    gethostname(my_name, max_len );
-    printf("My host name is %s.\n", my_name);
+        /* Calculate time in microseconds since last 50 MB transfer*/
+        float local_elapsed_time = (temp_time.tv_sec-local_time.tv_sec)*1000000.0 + temp_time.tv_usec-local_time.tv_usec;
 
-    printf( "\nEnter host to send to:\n" );
-    if ( fgets(host_name,max_len,stdin) == NULL ) {
-        perror("Ucast: read_name");
-        exit(1);
+        printf("Local elapsed time: %f microseconds\n", local_elapsed_time);	
+        printf("Average transfer rate: %f Mbits/s\n", /*(50*131072)*/(PAYLOAD_SIZE/8) / (local_elapsed_time/1000000.0));
+
+        /* Reset elapsed time */
+        gettimeofday(&local_time);
     }
-    
-    c = strchr(host_name,'\n');
-    if ( c ) *c = '\0';
-    c = strchr(host_name,'\r');
-    if ( c ) *c = '\0';
-
-    printf( "Sending from %s to %s.\n", my_name, host_name );
-
+    if (is_done == 1) /* print final stats */
+    {
+    	struct timeval end_time;
+	    gettimeofday(&end_time);
+	    unsigned long total_elapsed = (end_time.tv_sec-start_time.tv_sec)*1000000.0 + end_time.tv_usec-start_time.tv_usec;
+	    float average_transfer_rate = (total_data_transferred/8.0)/(total_elapsed/1000000.0); 
+	
+	    printf("***********************************************************************\n");
+	    printf("Total Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/	
+   	    printf("Total time elapsed: %lu us \n", total_elapsed);
+	    printf("Total average transfer rate: %f Mbit/s \n", average_transfer_rate);
+    }
 }

@@ -1,70 +1,114 @@
-John An
+Distributed Systems Assignment 1 Design Doc
+
 Daniel Swann
+John An
 
-Distributed Systems Assignment 1 Design Doc.
+****** Packet Structure ******
 
-We will transfer the file in custom packets. Our packet will contain a sequence number integer, an acknowledgement number integer, an array of bytes of size 2^12, and an integer FIN field that is either set to 0 or the index of the EOF character in the packet array.
+We will transfer the file using custom packets with a total size of 1400 bytes. Our packet will contain a uniquely incrementing sequence number integer, an acknowledgement number integer as part of our cumulative ack process, a data payload of size 1388 bytes (1400 bytes - the header), and an integer FIN field that is initially set to -1 (otherwise it is the of the last character in the file, sent in the last packet).
 
-packet structure
-int index //(sequence number)
+packet.h struct contains:
+int index (sequence number) - will never overflow with a 500 MB file
 int ack_num (acknowledgement number)
-char data[PAYLOAD_SIZE]
+char payload[PAYLOAD_SIZE] - payload size is 1388 bytes
 int FIN (to determine if the packet is the last in sequence)
 
---
-We will use the selective repeat protocol for our windowed packet transfer process.
---
-npc function:
-The npc function will contain:
-    - the struct defining a packet
-    - an array of packets of size 16
-    - an array of booleans of size 16
-    - a global int MAX_PACKET_NUM
-    - a global timer long
-    - a local timer long for the window – to calculate transfer rate per 50 megabytes
-    - a global counter long to hold the total amount of data in megabytes in the program so far
-    - a local counter int to check if we’ve hit the 50 megabyte benchmark.
+****** Selective Repeat Algorithm ******
 
-NOTE: We were considering using one counter and modding it after every packet sent to see if it was divisible by 2^20, but we thought that would be too expensive.
+We will use a modified version of the selective repeat protocol for our windowed packet transfer process. Both the sender and receiver contain a circular window array to hold current packets and a corresponding array of acks/nacks. A cumulative ack is sent every half window, and contains the sequence number of the most recently received in-order packet (aka the packet just before the first nack), as well as a payload of an array of acks and nacks corresponding to the current window. After much trial and error, we found that 512 packets was an efficient window size, and 5 ms was a great timeout rate.
 
-First, we begin the global timer.
+-- Sending packets: ncp.c --
 
-We first check if the local data counter is equal to 50*2^20 (the size of 50 megabytes), if it is, we print the global total data amount counter, then calculate and print the average rate of transfer of the last 50 megabytes, then reset the local data counter to 0.
+ncp.c contains some key global variables in order to keep track of things.  
 
-Then, 
-- Open file pointer
-- Divide file size by packet size, ceiling that value, then store resulting value as MAX_PACKET_NUM
-- Initiate a for loop bounded by MAX_PACKET_NUM
-    - Instantiate a local counter set to 0 for indexing the current window
-    - Initialize a packet struct, from the file, read in 2^12 bytes and store into the packet’s data value, then store the packet in the array of packets
-        - If we encounter the EOF character, set FIN value equal to the index of the EOF character within the data array
-    - When the packet array is full or the greater for loop is at its final iteration (i = MAX_PACKET_NUM), send all or up to 16-((MAX_PACKET_NUM mod 16)-1) packets in array in order, start timeout timer
-    - 1 second timeout per window frame (depends on network congestion)
-    - Wait for all acks ie. if any ack array values are false,
-        - Upon each ack received, set index = sequence number mod 16 in ack array to true
-        - If local timeout is >= 1, iterate through ack array and check for null values 
-            - Resend the non-ack’d packets
-            - Reset local timeout timer
-    - Traverse to first non-ack’d packet, shift window over by copying in subsequent value over previously sent packet, perform same shift on ack array, but set overflow values to false
+    int loss_rate - passed to send_dbg, taken as argument 1 from the shell
+    int new_sn - the sequence number representing the index of a newly shifted window, used to updated lack_acked_sn
+    int last_acked_sn - the index of the packet to most recently be acked, aka the "start of the current window"
+    int last_sent_sn - the index of the most recently sent packet, aka the "end of the current window"
+    struct packet window[WINDOW_SIZE] - an array of packet structs representing the current window
+    char ack_array[WINDOW_SIZE] - an array of booleans representing the packet acks currently received
+
+Stats globals, used for calculating transfer statistics:
+    int total_data_transferred - number of bytes sent thus far
+    struct timeval start_time - beginning execution time of the program
+    struct timeval local_time - used for calculating 50 MB interval stats
+
+Two secondary functions are included for argument parsing (split_string) and statistics calculation (print_stats)
+
+Sending algorithm:
+
+    1. Initialize global variables and start global timer
+           Split the third argument into filename and hostname at the '@' symbol
+    2. Perform socket opening logic with given hostname
+    3. Make sure we can open the given file for reading
+    4. Initialize the first packet with a sequence number of -1 and a payload of the filename to write to on the receiver side
+    5. Continuously send this first packet indefinitely until an ack is received from the sender with an ack number of -1 or a timeout occurs This is to ensure that the host is responsive and will know the proper filename to write to
+    6. After this first ack is received, we then initialze all the packets in the window array with a sequence number of -1, a FIN of -1, and ack_num of -1. The corresponding boolean in the ack_array is also updated with a value of 0.
+    7. Begin the file transfer by looping indefinitely
+        If the is_done variable (used for breaking out of multiple loops) is set, break
+        If the first packet in the window has a sequence number of zero (meaning we're at the first window), we send batch send this window to the receiver and update the last_sent_sn value to the last sequence number in this window
+        Check if we have received an ack packet from the sender
+             If so, we first make sure the ack packet received has a sequence number greater than the last_acked_sn (otherwise it's already been acked and we do nothing)
+             We then calculate the new sequence number offset by subtracting the current lask_ack_sn from the received sequence number.
+             The window is shifted by this new_sn offset by updating the window's packets in a while loop (while last_acked_sn < new_sn)
+                 We read in PAYLOAD_SIZE new chars from the file and put them in the necessary packets
+                 Update the ack_array at this index to false, indicating a new packet to sent
+                 If the number of chars read is less than the max PAYLOAD_SIZE, we need to send the last packet so we break the loop
+                 Otherwise it's not a last packet, set its FIN value to -1
+             Resend all packets in the window according the booleans in the received cumulative ack, update the window indexes accordingly             
+
+        Otherwise we've encountered a timeout, so resend all the packets who have false (0) values in the current ack_array.
+
+    8. Close the file and stop timer, we've sent everything succesfully
 
 
-rcv function:
-The rcv function will contain:
-    - the struct defining a packet
-    - an array of packets of size WINDOW_SIZE
-    - a global timer long
-    - a local timer long for the window – to calculate transfer rate per 50 megabytes
-    - a global counter long to hold the total amount of data in megabytes in the program so far
-    - a local counter int to check if we’ve hit the 50 megabyte benchmark.
+-- Receiving packets: rcv.c --
 
-- Read the packet’s sequence number
-    - If sequence number < sequence number of packet at first index, don’t store packet since it already has been written
-    - Else store in the receive buffer array at index = sequence number mod 16
-- Send an empty packet with the ack_num set to the sequence number
-- Iterate through the received packet array, write each index until we encounter a null index, shift window (send nack at this point? Increase performance?)
+Globals:
 
-Additional Information:
+    int loss_rate - passed to send_dbg, taken as argument 1 from the shell
+    int curr_seq_num - the index of the last received in-order packet ("start" of window)
+    char * filename - the name of the file to write to, gotten from the fist packet of the sender
+    struct packet first_packet - the first packet received from the sender
+    struct packet rcv_buf - the temp packet received each time from the sender
+    struct packet window[WINDOW_SIZE] - holds the current window of packets before writing to file
+    char nack_array[WINDOW_SIZE] - the window's corresponding boolean array of acks and nacks to send 
 
-In order to transmit the last packet of the file which may contain an arbitrary number of bytes padded by zeros, the FIN field will contain zero until the npc function pointer encounters the EOF character. After which, the FIN field of the last packet will be set to the index of the EOF character in the last data payload. This is to ensure that the remainder of the file is written to disk correctly, with no extraneous padding.
 
-We don’t need to worry about the upper bound for the loop in rcv function, when it encounters the FIN packet, it disregards any information left in the window and writes everything in the packet to the file.
+    Stats globals, used for calculating transfer statistics:
+        int total_data_transferred - number of bytes sent thus far
+        struct timeval start_time - beginning execution time of the program
+        struct timeval local_time - used for calculating 50 MB interval stats
+
+
+Receiving algorithm:
+
+    1. Initialize global variables and start global timer
+    2. Perform socket opening logic
+    3. Wait for the first packet containing the filename to be received
+           Update the sender address
+           Send an ack with "-1" as its ack_num value, indicating a successful receive (we will the first ack again later if it gets lost)
+    4. Open the file for writing and create the window array, with initial values of FIN=0, index=-1, and ack_num = -1 for all packets. Update the boolean nack_array with 0 for all packets
+    5. Loop indefinitely until the final packet is received
+        For half the window size:
+            If we have received a packet:
+                Check if it's the first packet sent again. Go the next window if so
+                Check for the final packet (FIN value >= 0) 
+                    Write out FIN number of bytes to the file from the current packet
+                    Close the file and break both loops
+                Otherwise the packet is in the middle, and we need to update the window
+                    Find the index of this packet in the window via % WINDOW_SIZE
+                    Set the corresponding value in the ack array for this packet to true
+                    While the sequence number of the current packet is not -1 
+                        Write the current packet data to file
+                        Set the packet index to -1 to ensure it isn't written again
+                        Reset corresponding boolean in nack array to false
+                        Increment the current sequence number
+        Resend the first packet ack if the received packet's sequence number is < 0
+        Otherwise update the cumulative ack with the proper sequence number and nack payload
+        Send the ack packet to the host
+        
+****** Limitations/Future Implementation ******
+We were unfortunately unable to implement TCP transfer due to a lack of time.
+
+We have not tested our receiver with multiple concurrent senders.
