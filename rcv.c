@@ -16,9 +16,9 @@ void print_stats(int is_done);
 
     int                   loss_rate;
     int                   i;
-    int                   new_index, index;
+    int                   new_index, shift_index;
     int                   curr_seq_num;
-    char         	  nack_array[WINDOW_SIZE];
+    char         	      nack_array[WINDOW_SIZE];
 
     FILE                  *fw;
     struct packet         ack;
@@ -135,10 +135,10 @@ int main(int argc, char **argv)
         timeout.tv_sec = 0;
         timeout.tv_usec = TIMEOUT_USEC;
 
-	if (is_done == 1)
-	{
-	    break;
-	}
+	    if (is_done == 1)
+	    {
+	        break;
+	    }
 
         for (i = 0; i < WINDOW_SIZE / 2; i++) {
             num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
@@ -160,7 +160,7 @@ int main(int argc, char **argv)
                     printf("Sequence Number: %i, Payload: %s, Curr: %i\n", rcv_buf.index, rcv_buf.payload, curr_seq_num);
 
                     /* Check for final packet */
-                    if (rcv_buf.FIN > 0) {
+                    if (rcv_buf.FIN >= 0) {
                         printf("RECEIVED FINAL PACKET\n");
                         fwrite(&window[new_index].payload, 1, rcv_buf.FIN, fw );
 
@@ -179,16 +179,16 @@ int main(int argc, char **argv)
                         nack_array[new_index] = '1';
                         
                         /**shift the window**/
-                        index = curr_seq_num % WINDOW_SIZE;
-                        while(window[index].index > -1) {
-                            index = curr_seq_num % WINDOW_SIZE;
-                            fwrite(window[index].payload, 1, PAYLOAD_SIZE, fw);
+                        shift_index = curr_seq_num % WINDOW_SIZE;
+                        while(window[shift_index].index > -1) {
+                            shift_index = curr_seq_num % WINDOW_SIZE;
+                            fwrite(window[shift_index].payload, 1, PAYLOAD_SIZE, fw);
 
                             total_data_transferred += PAYLOAD_SIZE;
                             print_stats(0);
 	
-                            window[index].index = -1;
-                            nack_array[index] = '0';
+                            window[shift_index].index = -1;
+                            nack_array[shift_index] = '0';
                             curr_seq_num++;
                         }
                     }
@@ -197,7 +197,8 @@ int main(int argc, char **argv)
                 }
             }
         }
-        if (rcv_buf.index < 0) { /** make sure first packet ack is sent properly **/
+        if (rcv_buf.index < 0) /** resend the first packet ack, it was lost **/
+        {
             ack.ack_num = rcv_buf.index;
         } 
         else /* Otherwise update the cumulative ack with seq num and nacks */

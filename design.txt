@@ -67,11 +67,11 @@ Sending algorithm:
 Globals:
 
     int loss_rate - passed to send_dbg, taken as argument 1 from the shell
-    int curr_seq_num - the index of the last
-    char * filename - the 
-    struct packet first_packet - 
+    int curr_seq_num - the index of the last received in-order packet ("start" of window)
+    char * filename - the name of the file to write to, gotten from the fist packet of the sender
+    struct packet first_packet - the first packet received from the sender
     struct packet rcv_buf - the temp packet received each time from the sender
-    struct packet window[WINDOW_SIZE] - holds current window of packets before writing to file
+    struct packet window[WINDOW_SIZE] - holds the current window of packets before writing to file
     char nack_array[WINDOW_SIZE] - the window's corresponding boolean array of acks and nacks to send 
 
 
@@ -81,11 +81,36 @@ Globals:
         struct timeval local_time - used for calculating 50 MB interval stats
 
 
+Receiving algorithm:
+
+    1. Initialize global variables and start global timer
+    2. Perform socket opening logic
+    3. Wait for the first packet containing the filename to be received
+           Update the sender address
+           Send an ack with "-1" as its ack_num value, indicating a successful receive (we will the first ack again later if it gets lost)
+    4. Open the file for writing and create the window array, with initial values of FIN=0, index=-1, and ack_num = -1 for all packets. Update the boolean nack_array with 0 for all packets
+    5. Loop indefinitely until the final packet is received
+        For half the window size:
+            If we have received a packet:
+                Check if it's the first packet sent again. Go the next window if so
+                Check for the final packet (FIN value >= 0) 
+                    Write out FIN number of bytes to the file from the current packet
+                    Close the file and break both loops
+                Otherwise the packet is in the middle, and we need to update the window
+                    Find the index of this packet in the window via % WINDOW_SIZE
+                    Set the corresponding value in the ack array for this packet to true
+                    While the sequence number of the current packet is not -1 
+                        Write the current packet data to file
+                        Set the packet index to -1 to ensure it isn't written again
+                        Reset corresponding boolean in nack array to false
+                        Increment the current sequence number
+        Resend the first packet ack if the received packet's sequence number is < 0
+        Otherwise update the cumulative ack with the proper sequence number and nack payload
+        Send the ack packet to the host
+        
+        
+****** Limitations/Future Implementation ******
+We were unfortunately unable to implement TCP transfer due to a lack of time. However
 
 
-
-Additional Information:
-
-In order to transmit the last packet of the file which may contain an arbitrary number of bytes padded by zeros, the FIN field will contain zero until the npc function pointer encounters the EOF character. After which, the FIN field of the last packet will be set to the index of the EOF character in the last data payload. This is to ensure that the remainder of the file is written to disk correctly, with no extraneous padding.
-
-We don’t need to worry about the upper bound for the loop in rcv function, when it encounters the FIN packet, it disregards any information left in the window and writes everything in the packet to the file.
+We have not tested our receiver with multiple concurrent senders.
