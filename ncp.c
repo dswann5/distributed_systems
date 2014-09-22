@@ -179,7 +179,6 @@ int main(int argc, char **argv)
                 
                 /** need to catch rogue acks for first header HACKY CONDITIONAL**/
                 if (ack.ack_num > last_acked_sn) {
-                    printf("Ack Number: %i, Payload: %s\n", ack.ack_num, ack.payload);
                     new_sn = ack.ack_num - last_acked_sn;
 
                     /** moves send window up to where rcv window is
@@ -196,7 +195,7 @@ int main(int argc, char **argv)
                             break;
                         }
                         else
-                            window[i].FIN = -1;
+                            window[i].FIN = 0;
                         last_acked_sn++;
                         last_sent_sn++;
                     }
@@ -208,7 +207,7 @@ int main(int argc, char **argv)
                             j = j % WINDOW_SIZE;
                         }
                         if (ack.payload[j] == '0') {
-                            if (window[j].FIN >= 0) {
+                            if (window[j].FIN > 0) {
                                 size = window[j].FIN;
                             } else {
                                 size = PACKET_SIZE;
@@ -262,32 +261,32 @@ void print_stats(int is_done)
     /* Print stats for every 50 MB */
     if (total_data_transferred % PAYLOAD_SIZE == 0)/*(50*1048576) == 0)*/
     {
-	printf("**********************************************************************\n");
-	printf("Current Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/
+        printf("**********************************************************************\n");
+        printf("Current Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/
 
-	/* Find the current time for later comparison */
-	struct timeval temp_time;
-	gettimeofday(&temp_time);
+        /* Find the current time for later comparison */
+        struct timeval temp_time;
+        gettimeofday(&temp_time);
 
-	/* Calculate time in microseconds since last 50 MB transfer*/
- 	float local_elapsed_time = (temp_time.tv_sec-local_time.tv_sec)*1000000.0 + temp_time.tv_usec-local_time.tv_usec;
+        /* Calculate time in microseconds since last 50 MB transfer*/
+        float local_elapsed_time = (temp_time.tv_sec-local_time.tv_sec)*1000000.0 + temp_time.tv_usec-local_time.tv_usec;
 
-	printf("Local elapsed time: %f microseconds\n", local_elapsed_time);	
-	printf("Average transfer rate: %f Mbits/s\n", /*(50*131072)*/(PAYLOAD_SIZE/8) / (local_elapsed_time/1000000.0));
+        printf("Local elapsed time: %f microseconds\n", local_elapsed_time);	
+        printf("Average transfer rate: %f Mbits/s\n", /*(50*131072)*/(PAYLOAD_SIZE/8) / (local_elapsed_time/1000000.0));
 
-	/* Reset elapsed time */
-	gettimeofday(&local_time);
+        /* Reset elapsed time */
+        gettimeofday(&local_time);
     }
     if (is_done == 1) /* print final stats */
     {
-	struct timeval end_time;
-	gettimeofday(&end_time);
-	unsigned long total_elapsed = (end_time.tv_sec-start_time.tv_sec)*1000000.0 + end_time.tv_usec-start_time.tv_usec;
-	float average_transfer_rate = (total_data_transferred/8.0)/(total_elapsed/1000000.0); 
+    	struct timeval end_time;
+	    gettimeofday(&end_time);
+	    unsigned long total_elapsed = (end_time.tv_sec-start_time.tv_sec)*1000000.0 + end_time.tv_usec-start_time.tv_usec;
+	    float average_transfer_rate = (total_data_transferred/8.0)/(total_elapsed/1000000.0); 
 	
-	printf("***********************************************************************\n");
-	printf("Total Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/	
-   	printf("Total time elapsed: %lu us \n", total_elapsed);
-	printf("Total average transfer rate: %f Mbit/s \n", average_transfer_rate);
+	    printf("***********************************************************************\n");
+	    printf("Total Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/	
+   	    printf("Total time elapsed: %lu us \n", total_elapsed);
+	    printf("Total average transfer rate: %f Mbit/s \n", average_transfer_rate);
     }
 }

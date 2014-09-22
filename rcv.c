@@ -70,8 +70,6 @@ int main(int argc, char **argv)
     FD_SET( (long)0, &mask ); /* stdin */
     /** end socket logic **/
 
-
-
     /* Wait for first packet */
     for (;;)
     {
@@ -89,15 +87,10 @@ int main(int argc, char **argv)
                         &from_len );
                 from_addr.sin_port = htons(PORT);
                 from_ip = from_addr.sin_addr.s_addr;
-                printf( "Received from (%d.%d.%d.%d)\n", 
-								(htonl(from_ip) & 0xff000000)>>24,
-								(htonl(from_ip) & 0x00ff0000)>>16,
-								(htonl(from_ip) & 0x0000ff00)>>8,
-								(htonl(from_ip) & 0x000000ff));
                 
                 filename = first_packet.payload;
 
-                printf("First packet index: %i received, sending ack: %s", first_packet.index, first_packet.payload);
+                printf("First packet index: %i received, sending ack", first_packet.index);
                 first_packet.ack_num = -1;
                 sendto_dbg( ss, (const char *)&first_packet, PACKET_SIZE, 0,
                         (struct sockaddr *)&from_addr, sizeof(from_addr));
@@ -119,7 +112,6 @@ int main(int argc, char **argv)
         window[i].ack_num = -1;
         nack_array[i] = '0';
     }
-    printf("%s\n", nack_array);
 
     /* initialize curr_seq_num 
      * last_acked_sn */
@@ -144,11 +136,6 @@ int main(int argc, char **argv)
             num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
             if (num > 0) {
                 if ( FD_ISSET( sr, &temp_mask) ) {
-                    printf( "Received from (%d.%d.%d.%d)\n", 
-                                    (htonl(from_ip) & 0xff000000)>>24,
-                                    (htonl(from_ip) & 0x00ff0000)>>16,
-                                    (htonl(from_ip) & 0x0000ff00)>>8,
-                                    (htonl(from_ip) & 0x000000ff));
 
                     recvfrom( sr, &rcv_buf, PACKET_SIZE, 0,
                              (struct sockaddr *)&from_addr,
@@ -157,10 +144,9 @@ int main(int argc, char **argv)
                     /** checks if received packet is first packet **/
                     if (rcv_buf.index < 0)
                         break;
-                    printf("Sequence Number: %i, Payload: %s, Curr: %i\n", rcv_buf.index, rcv_buf.payload, curr_seq_num);
 
                     /* Check for final packet */
-                    if (rcv_buf.FIN >= 0) {
+                    if (rcv_buf.FIN > 0) {
                         printf("RECEIVED FINAL PACKET\n");
                         fwrite(&window[new_index].payload, 1, rcv_buf.FIN, fw );
 
@@ -208,7 +194,6 @@ int main(int argc, char **argv)
         }
         
         from_addr.sin_port = htons(PORT);
-        printf("sent ack, ack_num: %i, payload: %s\n", ack.ack_num, ack.payload);
         sendto_dbg( ss, (const char *)&ack, PACKET_SIZE, 0,
                 (struct sockaddr *)&from_addr, sizeof(from_addr));
 
@@ -224,32 +209,32 @@ void print_stats(int is_done)
     /* Print stats for every 50 MB */
     if (total_data_transferred % PAYLOAD_SIZE == 0)/*(50*1048576) == 0)*/
     {
-	printf("**********************************************************************\n");
-	printf("Current Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/
+        printf("**********************************************************************\n");
+        printf("Current Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/
 
-	/* Find the current time for later comparison */
-	struct timeval temp_time;
-	gettimeofday(&temp_time);
+        /* Find the current time for later comparison */
+        struct timeval temp_time;
+        gettimeofday(&temp_time);
 
-	/* Calculate time in microseconds since last 50 MB transfer*/
- 	float local_elapsed_time = (temp_time.tv_sec-local_time.tv_sec)*1000000.0 + temp_time.tv_usec-local_time.tv_usec;
+        /* Calculate time in microseconds since last 50 MB transfer*/
+        float local_elapsed_time = (temp_time.tv_sec-local_time.tv_sec)*1000000.0 + temp_time.tv_usec-local_time.tv_usec;
 
-	printf("Local elapsed time: %f microseconds\n", local_elapsed_time);	
-	printf("Average transfer rate: %f Mbits/s\n", /*(50*131072)*/(PAYLOAD_SIZE/8) / (local_elapsed_time/1000000.0));
+        printf("Local elapsed time: %f microseconds\n", local_elapsed_time);	
+        printf("Average transfer rate: %f Mbits/s\n", /*(50*131072)*/(PAYLOAD_SIZE/8) / (local_elapsed_time/1000000.0));
 
-	/* Reset elapsed time */
-	gettimeofday(&local_time);
+        /* Reset elapsed time */
+        gettimeofday(&local_time);
     }
     if (is_done == 1) /* print final stats */
     {
-	struct timeval end_time;
-	gettimeofday(&end_time);
-	unsigned long total_elapsed = (end_time.tv_sec-start_time.tv_sec)*1000000.0 + end_time.tv_usec-start_time.tv_usec;
-	float average_transfer_rate = (total_data_transferred/8.0)/(total_elapsed/1000000.0); 
+    	struct timeval end_time;
+	    gettimeofday(&end_time);
+	    unsigned long total_elapsed = (end_time.tv_sec-start_time.tv_sec)*1000000.0 + end_time.tv_usec-start_time.tv_usec;
+	    float average_transfer_rate = (total_data_transferred/8.0)/(total_elapsed/1000000.0); 
 	
-	printf("***********************************************************************\n");
-	printf("Total Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/	
-   	printf("Total time elapsed: %lu us \n", total_elapsed);
-	printf("Total average transfer rate: %f Mbit/s \n", average_transfer_rate);
+	    printf("***********************************************************************\n");
+	    printf("Total Mbytes transferred: %d\n", total_data_transferred); /* 1048576);*/	
+   	    printf("Total time elapsed: %lu us \n", total_elapsed);
+	    printf("Total average transfer rate: %f Mbit/s \n", average_transfer_rate);
     }
 }

@@ -108,9 +108,7 @@ Receiving algorithm:
         Otherwise update the cumulative ack with the proper sequence number and nack payload
         Send the ack packet to the host
         
-        
 ****** Limitations/Future Implementation ******
-We were unfortunately unable to implement TCP transfer due to a lack of time. However
-
+We were unfortunately unable to implement TCP transfer due to a lack of time.
 
 We have not tested our receiver with multiple concurrent senders.
