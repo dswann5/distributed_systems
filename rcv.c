@@ -77,7 +77,7 @@ int main(int argc, char **argv)
     {
         temp_mask = mask;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 1000000;
+        timeout.tv_usec = TIMEOUT_USEC;
 
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
         if (num > 0) {
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
     {
         temp_mask = mask;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 10;
+        timeout.tv_usec = TIMEOUT_USEC;
 
 	if (is_done == 1)
 	{
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
                         break;
                     printf("Sequence Number: %i, Payload: %s, Curr: %i\n", rcv_buf.index, rcv_buf.payload, curr_seq_num);
 
-                    /** HACK to find FIN **/
+                    /* Check for final packet */
                     if (rcv_buf.FIN > 0) {
                         printf("RECEIVED FINAL PACKET\n");
                         fwrite(&window[new_index].payload, 1, rcv_buf.FIN, fw );
@@ -171,14 +171,13 @@ int main(int argc, char **argv)
                         is_done = 1;
                         break;
                     }
-                    /** HACK **/
 
+                    /* Check for a subsequent packet and update window/nack array accordingly */
                     if (curr_seq_num <= rcv_buf.index) {
-                        printf("*******************\nI'M HERERRERERE\n***********");
                         new_index = rcv_buf.index % WINDOW_SIZE;
                         window[new_index] = rcv_buf;
                         nack_array[new_index] = '1';
-                        printf("\nCOWABUNGA %s\n", nack_array);
+                        
                         /**shift the window**/
                         index = curr_seq_num % WINDOW_SIZE;
                         while(window[index].index > -1) {
@@ -200,13 +199,13 @@ int main(int argc, char **argv)
         }
         if (rcv_buf.index < 0) { /** make sure first packet ack is sent properly **/
             ack.ack_num = rcv_buf.index;
-        } else {
+        } 
+        else /* Otherwise update the cumulative ack with seq num and nacks */
+        {
             ack.ack_num = curr_seq_num;
             strcpy( ack.payload, nack_array);
         }
-        /*ack.ack_num = curr_seq_num;
-        strcpy( ack.payload, nack_array);
-*/
+        
         from_addr.sin_port = htons(PORT);
         printf("sent ack, ack_num: %i, payload: %s\n", ack.ack_num, ack.payload);
         sendto_dbg( ss, (const char *)&ack, PACKET_SIZE, 0,

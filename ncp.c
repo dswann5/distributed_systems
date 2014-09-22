@@ -1,8 +1,6 @@
 #include "net_include.h"
 #include <assert.h>
 
-#define NAME_LENGTH 80
-
 void split_string(char *destination, char **dest_file_name, char **dest_comp_name); 
 void print_stats(int is_done);
 
@@ -20,7 +18,7 @@ void print_stats(int is_done);
     int                   i, j;
     int                   new_sn, last_acked_sn, last_sent_sn;
     int                   nread;
-    struct packet         first_packet; /** maybe think about making a pointer **/
+    struct packet         first_packet; /* the first packet, contains the sender's filename */
     struct packet         ack;
 
     int                   loss_rate;
@@ -113,7 +111,7 @@ int main(int argc, char **argv)
     {
         temp_mask = mask;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 1000000;
+        timeout.tv_usec = TIMEOUT_USEC;
 
         strcpy(first_packet.payload, dest_file_name);
         first_packet.FIN = 0;
@@ -158,7 +156,7 @@ int main(int argc, char **argv)
         }
         temp_mask = mask;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 10;
+        timeout.tv_usec = TIMEOUT_USEC;
 
         if(window[0].index < 0) {
             /** send whole first window, think about catching FIN in first window **/
@@ -198,7 +196,7 @@ int main(int argc, char **argv)
                             break;
                         }
                         else
-                            window[i].FIN = 0;
+                            window[i].FIN = -1;
                         last_acked_sn++;
                         last_sent_sn++;
                     }
@@ -210,7 +208,7 @@ int main(int argc, char **argv)
                             j = j % WINDOW_SIZE;
                         }
                         if (ack.payload[j] == '0') {
-                            if (window[j].FIN > 0) {
+                            if (window[j].FIN >= 0) {
                                 size = window[j].FIN;
                             } else {
                                 size = PACKET_SIZE;
